@@ -26,9 +26,19 @@ import javax.inject.Inject
 sealed class CourseFilesUiState {
     object Loading : CourseFilesUiState()
     data class Success(
-        val files: List<CanvasCourseFile>,
-        val foldersMap: Map<Long, CanvasFolder>
-    ) : CourseFilesUiState()
+        val allFiles: List<CanvasCourseFile>,
+        val allFolders: List<CanvasFolder>,
+        val foldersMap: Map<Long, CanvasFolder>,
+        val currentFolderId: Long?,
+        val currentFolderPath: List<CanvasFolder>
+    ) : CourseFilesUiState() {
+        // 获取当前文件夹的文件和子文件夹
+        val currentFiles: List<CanvasCourseFile>
+            get() = allFiles.filter { it.folderId == currentFolderId }
+        
+        val childFolders: List<CanvasFolder>
+            get() = allFolders.filter { it.parentFolderId == currentFolderId }
+    }
 
     data class Error(val message: String) : CourseFilesUiState()
 }
@@ -59,6 +69,9 @@ class CourseFilesViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<CourseFilesUiState>(CourseFilesUiState.Loading)
     val uiState: StateFlow<CourseFilesUiState> = _uiState.asStateFlow()
+
+    private val _currentFolderId = MutableStateFlow<Long?>(null)
+    val currentFolderId: StateFlow<Long?> = _currentFolderId.asStateFlow()
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
@@ -111,11 +124,52 @@ class CourseFilesViewModel @Inject constructor(
                     _courseIdentifier.value = composed.ifBlank { null }
                 }
             }
+            
+            // 找到根文件夹 "course files"
+            val rootFolder = folders.find { it.name == "course files" }
+            val rootFolderId = rootFolder?.id
+            _currentFolderId.value = rootFolderId
+            
             _uiState.value = CourseFilesUiState.Success(
-                files = files,
-                foldersMap = folders.associateBy { it.id }
+                allFiles = files,
+                allFolders = folders,
+                foldersMap = folders.associateBy { it.id },
+                currentFolderId = rootFolderId,
+                currentFolderPath = buildFolderPath(rootFolderId, folders)
             )
         }
+    }
+
+    fun navigateToFolder(folderId: Long?) {
+        val state = _uiState.value as? CourseFilesUiState.Success ?: return
+        _currentFolderId.value = folderId
+        _uiState.value = state.copy(
+            currentFolderId = folderId,
+            currentFolderPath = buildFolderPath(folderId, state.allFolders)
+        )
+    }
+
+    fun navigateBack() {
+        val state = _uiState.value as? CourseFilesUiState.Success ?: return
+        val currentFolder = state.foldersMap[state.currentFolderId]
+        if (currentFolder?.parentFolderId != null) {
+            navigateToFolder(currentFolder.parentFolderId)
+        }
+    }
+
+    private fun buildFolderPath(folderId: Long?, allFolders: List<CanvasFolder>): List<CanvasFolder> {
+        if (folderId == null) return emptyList()
+        
+        val path = mutableListOf<CanvasFolder>()
+        var currentId: Long? = folderId
+        val folderMap = allFolders.associateBy { it.id }
+        
+        while (currentId != null) {
+            val folder = folderMap[currentId] ?: break
+            path.add(0, folder)
+            currentId = folder.parentFolderId
+        }
+        return path
     }
 
     fun downloadSingle(file: CanvasCourseFile) {
@@ -165,6 +219,49 @@ class CourseFilesViewModel @Inject constructor(
         }
     }
 
+    fun downloadMultiple(files: List<CanvasCourseFile>) {
+        if (files.isEmpty()) return
+        viewModelScope.launch {
+            val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
+            val tree = getRootTreeDocument() ?: return@launch
+
+            val courseDir = ensureDirectory(tree, courseIdentifier())
+            if (courseDir == null) {
+                _events.emit(CourseFilesEvent.Message("创建课程目录失败"))
+                return@launch
+            }
+
+            var successCount = 0
+            files.forEach { file ->
+                val relativeFolder = resolveRelativeFolder(file, state.foldersMap) ?: return@forEach
+                val targetDir = ensureDirectory(courseDir, relativeFolder) ?: return@forEach
+
+                repository.downloadCourseFileBytesWithProgress(file) { processed, total ->
+                    _downloadProgress.value = _downloadProgress.value + (
+                        file.id to DownloadProgress(processed = processed, total = total)
+                    )
+                }
+                    .onSuccess { bytes ->
+                        if (writeBytesToFile(targetDir, file, bytes)) {
+                            successCount += 1
+                            val finalTotal = _downloadProgress.value[file.id]?.total ?: file.size ?: bytes.size.toLong()
+                            markProgressFinished(
+                                fileId = file.id,
+                                processed = bytes.size.toLong(),
+                                total = if (finalTotal > 0) finalTotal else bytes.size.toLong()
+                            )
+                        } else {
+                            _downloadProgress.value = _downloadProgress.value - file.id
+                        }
+                    }
+                    .onFailure {
+                        _downloadProgress.value = _downloadProgress.value - file.id
+                    }
+            }
+            _events.emit(CourseFilesEvent.Message("批量下载完成：$successCount / ${files.size}"))
+        }
+    }
+
     fun openFile(file: CanvasCourseFile) {
         viewModelScope.launch {
             val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
@@ -207,7 +304,7 @@ class CourseFilesViewModel @Inject constructor(
 
             _isSyncing.value = true
             try {
-                val filesToSync = state.files.filter { file ->
+                val filesToSync = state.allFiles.filter { file ->
                     val relativeFolder = resolveRelativeFolder(file, state.foldersMap)
                     if (relativeFolder == null) {
                         false
