@@ -251,7 +251,7 @@ class SjtuVideoRepository @Inject constructor(
                     SubtitleEntry(
                         beginMs = item.bg,
                         endMs = item.ed,
-                        text = (item.zh ?: item.res).trim()
+                        text = item.res.trim()
                     )
                 }
             )
