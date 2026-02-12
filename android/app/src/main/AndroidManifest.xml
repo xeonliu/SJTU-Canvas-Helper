@@ -23,7 +23,10 @@
         
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:exported="true"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
             android:theme="@style/Theme.SJTUCanvasHelper"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.windowsizeclass.*
+//import androidx.compose.material3.windowsizeclass.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -134,8 +134,14 @@ fun AppNavHost(
         
         composable(Screen.Courses.route) {
             CoursesScreen(
-                onCourseClick = { courseId ->
+                onAssignmentsClick = { courseId ->
                     navController.navigate(Screen.Assignments.createRoute(courseId))
+                },
+                onVideosClick = { courseId ->
+                    navController.navigate(Screen.Videos.createRoute(courseId))
+                },
+                onFilesClick = { courseId ->
+                    navController.navigate(Screen.Files.createRoute(courseId))
                 }
             )
         }
@@ -151,6 +157,14 @@ fun AppNavHost(
         composable(Screen.Videos.route) { backStackEntry ->
             val courseId = backStackEntry.arguments?.getString("courseId")?.toLongOrNull() ?: 0L
             VideosScreen(
+                courseId = courseId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Files.route) { backStackEntry ->
+            val courseId = backStackEntry.arguments?.getString("courseId")?.toLongOrNull() ?: 0L
+            CourseFilesScreen(
                 courseId = courseId,
                 onNavigateBack = { navController.popBackStack() }
             )
