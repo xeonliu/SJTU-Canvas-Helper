@@ -39,4 +39,10 @@ class SettingsViewModel @Inject constructor(
             _courseFilesTreeUri.value = null
         }
     }
+
+    fun saveCanvasToken(token: String) {
+        viewModelScope.launch {
+            userPreferences.saveCanvasToken(token)
+        }
+    }
 }
