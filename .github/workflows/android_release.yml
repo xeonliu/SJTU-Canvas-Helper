@@ -32,7 +32,9 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android build-tools
-        run: sdkmanager "build-tools;34.0.0"
+        run: |
+          sdkmanager "build-tools;34.0.0"
+          sdkmanager "build-tools;29.0.3"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
