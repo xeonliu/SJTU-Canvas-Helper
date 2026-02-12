@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,7 +72,7 @@ fun SettingsScreen() {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 
                 SettingsItem(
-                    icon = Icons.Default.Logout,
+                    icon = Icons.AutoMirrored.Filled.Logout,
                     title = stringResource(R.string.settings_logout),
                     subtitle = "退出当前账户",
                     onClick = { /* TODO: Implement logout */ }
@@ -132,7 +133,7 @@ fun SettingsScreen() {
         TokenDialog(
             onDismiss = { showTokenDialog = false },
             onSave = { token ->
-                // TODO: Save token
+                viewModel.saveCanvasToken(token)
                 showTokenDialog = false
             }
         )
