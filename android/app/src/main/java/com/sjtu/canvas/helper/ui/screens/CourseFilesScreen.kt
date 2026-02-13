@@ -46,7 +46,6 @@ import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
-import androidx.compose.material.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -116,8 +115,8 @@ fun CourseFilesScreen(
                         Icon(Icons.Default.Refresh, contentDescription = null)
                     }
                 },
-                backgroundColor = MaterialTheme.colors.primarySurface,
-                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
+                backgroundColor = MaterialTheme.colors.primary,
+                contentColor = MaterialTheme.colors.onPrimary
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -466,7 +465,7 @@ private fun CourseFileRow(
             }
             if (progress != null) {
                 LinearProgressIndicator(
-                    progress = { if (progress.finished) 1f else progress.ratio },
+                    progress = if (progress.finished) 1f else progress.ratio,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(

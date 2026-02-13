@@ -54,7 +54,6 @@ import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
 import androidx.compose.material.AlertDialog
-import androidx.compose.material.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -165,8 +164,8 @@ fun VideosScreen(
                             Icon(Icons.Default.Refresh, contentDescription = null)
                         }
                     },
-                    backgroundColor = MaterialTheme.colors.primarySurface,
-                    contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
+                    backgroundColor = MaterialTheme.colors.primary,
+                    contentColor = MaterialTheme.colors.onPrimary
                 )
             }
         }
@@ -1261,56 +1260,73 @@ private fun BoxScope.PlayerOverlayControls(
             DropdownMenu(expanded = settingsOpen, onDismissRequest = { settingsOpen = false }) {
                 if (onOpenSelector != null) {
                     DropdownMenuItem(
-                        text = { Text("选择视频/播放源") },
                         onClick = {
                             onOpenSelector()
                             settingsOpen = false
                         }
-                    )
+                    ) {
+                        Text("选择视频/播放源")
+                    }
                 }
 
                 if (onDualModeChange != null) {
                     DropdownMenuItem(
-                        text = { Text("同屏播放") },
-                        onClick = {},
-                        trailingIcon = {
+                        onClick = {}
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("同屏播放")
                             Switch(
                                 checked = dualMode,
                                 onCheckedChange = { onDualModeChange(it) }
                             )
                         }
-                    )
+                    }
                 }
 
                 DropdownMenuItem(
-                    text = { Text("字幕") },
-                    onClick = {},
-                    trailingIcon = {
+                    onClick = {}
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("字幕")
                         Switch(
                             checked = subtitleEnabled,
                             onCheckedChange = { onSubtitleEnabledChange(it) },
                             enabled = subtitleAvailable
                         )
                     }
-                )
+                }
 
                 DropdownMenuItem(
-                    text = { Text("倍速") },
                     onClick = {}
-                )
+                ) {
+                    Text("倍速")
+                }
                 listOf(0.5f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { v ->
                     DropdownMenuItem(
-                        text = { Text("倍速 ${v}x") },
                         onClick = {
                             onSpeedChange(v)
                             settingsOpen = false
-                        },
-                        trailingIcon = {
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("倍速 ${v}x")
                             if (speed == v) {
                                 Icon(Icons.Default.Check, contentDescription = null)
                             }
                         }
-                    )
+                    }
                 }
 
                 DropdownMenuItem(

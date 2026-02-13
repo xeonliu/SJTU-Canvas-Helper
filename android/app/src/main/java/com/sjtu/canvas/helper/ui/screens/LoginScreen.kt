@@ -42,8 +42,8 @@ fun LoginScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.login_title)) },
-                backgroundColor = MaterialTheme.colors.primarySurface,
-                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
+                backgroundColor = MaterialTheme.colors.primary,
+                contentColor = MaterialTheme.colors.onPrimary
             )
         }
     ) { paddingValues ->

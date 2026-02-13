@@ -53,8 +53,8 @@ fun AssignmentsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
                 },
-                backgroundColor = MaterialTheme.colors.primarySurface,
-                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
+                backgroundColor = MaterialTheme.colors.primary,
+                contentColor = MaterialTheme.colors.onPrimary
             )
         }
     ) { paddingValues ->

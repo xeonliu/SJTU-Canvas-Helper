@@ -46,8 +46,8 @@ fun SettingsScreen() {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
-                backgroundColor = MaterialTheme.colors.primarySurface,
-                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
+                backgroundColor = MaterialTheme.colors.primary,
+                contentColor = MaterialTheme.colors.onPrimary
             )
         }
     ) { paddingValues ->
@@ -167,18 +167,37 @@ fun SettingsItem(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(subtitle) },
-        leadingContent = {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colors.primary
+                tint = MaterialTheme.colors.primary,
+                modifier = Modifier.size(24.dp)
             )
-        },
-        modifier = Modifier.clickable(onClick = onClick)
-    )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.body1
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
 }
 
 @Composable

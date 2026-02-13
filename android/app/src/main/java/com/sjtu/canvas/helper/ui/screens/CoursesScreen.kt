@@ -36,8 +36,8 @@ fun CoursesScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.courses_title)) },
-                backgroundColor = MaterialTheme.colors.primarySurface,
-                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
+                backgroundColor = MaterialTheme.colors.primary,
+                contentColor = MaterialTheme.colors.onPrimary
             )
         }
     ) { paddingValues ->
@@ -135,7 +135,7 @@ fun CourseCard(
                 Surface(
                     modifier = Modifier.size(56.dp),
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colors.primarySurface
+                    color = MaterialTheme.colors.primary
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -144,7 +144,7 @@ fun CourseCard(
                         Icon(
                             imageVector = Icons.Default.Book,
                             contentDescription = null,
-                            tint = contentColorFor(MaterialTheme.colors.primarySurface)
+                            tint = MaterialTheme.colors.onPrimary
                         )
                     }
                 }
