@@ -1,6 +1,7 @@
 package com.sjtu.canvas.helper.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,8 +68,10 @@ import com.sjtu.canvas.helper.R
 import com.sjtu.canvas.helper.data.model.CanvasCourseFile
 import com.sjtu.canvas.helper.data.model.CanvasFolder
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesEvent
+import com.sjtu.canvas.helper.ui.viewmodel.DownloadStatus
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesUiState
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesViewModel
+import com.sjtu.canvas.helper.ui.components.ContextualActionBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,12 +84,13 @@ fun CourseFilesScreen(
     val currentFolderId by viewModel.currentFolderId.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val progressMap by viewModel.downloadProgress.collectAsState()
+    val selectedFileIds by viewModel.selectedFileIds.collectAsState()
+    val isSelectionMode = selectedFileIds.isNotEmpty()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     
-    // 多选状态
-    var selectedFileIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var selectedFolderIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    // Derived state for folder selection (currently unused, kept for future expansion)
+    // var selectedFolderIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -103,6 +107,10 @@ fun CourseFilesScreen(
                 }
             }
         }
+    }
+
+    BackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
     }
 
     Scaffold(
@@ -167,13 +175,11 @@ fun CourseFilesScreen(
                         folderPath = state.currentFolderPath,
                         onFolderClick = { folder ->
                             // 进入新文件夹时清空选择
-                            selectedFileIds = emptySet()
-                            selectedFolderIds = emptySet()
+                            viewModel.clearSelection()
                             viewModel.navigateToFolder(folder.id)
                         },
                         onBackClick = {
-                            selectedFileIds = emptySet()
-                            selectedFolderIds = emptySet()
+                            viewModel.clearSelection()
                             viewModel.navigateBack()
                         },
                         canGoBack = state.currentFolderId != null && 
@@ -185,8 +191,8 @@ fun CourseFilesScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .weight(1f),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
                             Button(
@@ -204,19 +210,12 @@ fun CourseFilesScreen(
                             items(state.childFolders) { folder ->
                                 FolderItem(
                                     folder = folder,
-                                    isSelected = folder.id in selectedFolderIds,
+                                    isSelected = false,
                                     onClick = { 
-                                        selectedFileIds = emptySet()
-                                        selectedFolderIds = emptySet()
+                                        viewModel.clearSelection()
                                         viewModel.navigateToFolder(folder.id) 
                                     },
-                                    onLongClick = {
-                                        if (folder.id in selectedFolderIds) {
-                                            selectedFolderIds = selectedFolderIds - folder.id
-                                        } else {
-                                            selectedFolderIds = selectedFolderIds + folder.id
-                                        }
-                                    }
+                                    onLongClick = {}
                                 )
                             }
                         }
@@ -230,39 +229,36 @@ fun CourseFilesScreen(
                             items(state.currentFiles) { file ->
                                 CourseFileRow(
                                     file = file,
-                                    isSelected = file.id in selectedFileIds,
+                                    isSelected = file.id.toString() in selectedFileIds,
+                                    isSelectionMode = isSelectionMode,
                                     syncing = isSyncing,
                                     progress = progressMap[file.id],
+                                    onSelectToggle = {
+                                        viewModel.toggleFileSelection(file.id.toString())
+                                    },
                                     onDownload = { viewModel.downloadSingle(file) },
                                     onOpen = { viewModel.openFile(file) },
                                     onLongClick = {
-                                        if (file.id in selectedFileIds) {
-                                            selectedFileIds = selectedFileIds - file.id
-                                        } else {
-                                            selectedFileIds = selectedFileIds + file.id
-                                        }
+                                        viewModel.selectFile(file.id.toString())
                                     }
                                 )
                             }
                         }
                     }
 
-                    // 批量操作栏
-                    if (selectedFileIds.isNotEmpty()) {
-                        BatchActionBar(
-                            selectedCount = selectedFileIds.size,
-                            onDownloadClick = {
-                                val filesToDownload = state.currentFiles.filter { it.id in selectedFileIds }
-                                viewModel.downloadMultiple(filesToDownload)
-                                selectedFileIds = emptySet()
-                                selectedFolderIds = emptySet()
-                            },
-                            onClearClick = {
-                                selectedFileIds = emptySet()
-                                selectedFolderIds = emptySet()
-                            }
-                        )
-                    }
+                    // Contextual Action Bar for multi-select file operations
+                    ContextualActionBar(
+                        isVisible = selectedFileIds.isNotEmpty(),
+                        selectedCount = selectedFileIds.size,
+                        onDownloadClick = {
+                            val filesToDownload = state.currentFiles.filter { it.id.toString() in selectedFileIds }
+                            viewModel.downloadMultiple(filesToDownload)
+                            viewModel.clearSelection()
+                        },
+                        onCloseClick = {
+                            viewModel.clearSelection()
+                        }
+                    )
                 }
             }
         }
@@ -425,8 +421,10 @@ private fun FolderItem(
 private fun CourseFileRow(
     file: CanvasCourseFile,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     syncing: Boolean,
     progress: com.sjtu.canvas.helper.ui.viewmodel.DownloadProgress?,
+    onSelectToggle: () -> Unit,
     onDownload: () -> Unit,
     onOpen: () -> Unit,
     onLongClick: () -> Unit
@@ -435,7 +433,11 @@ private fun CourseFileRow(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
-                onClick = {},
+                onClick = {
+                    if (isSelectionMode) {
+                        onSelectToggle()
+                    }
+                },
                 onLongClick = onLongClick
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -450,22 +452,22 @@ private fun CourseFileRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isSelected) {
+                if (isSelectionMode) {
                     Checkbox(
-                        checked = true,
-                        onCheckedChange = null,
-                        modifier = Modifier.size(24.dp)
+                        checked = isSelected,
+                        onCheckedChange = { onSelectToggle() },
+                        modifier = Modifier.size(22.dp)
                     )
                 } else {
-                    Spacer(modifier = Modifier.width(36.dp))
+                    Spacer(modifier = Modifier.width(30.dp))
                 }
                 Text(
                     file.displayName,
@@ -474,20 +476,33 @@ private fun CourseFileRow(
                 )
             }
             if (progress != null) {
-                LinearProgressIndicator(
-                    progress = { if (progress.finished) 1f else progress.ratio },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (progress.status == DownloadStatus.QUEUED) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                } else if (progress.status == DownloadStatus.DOWNLOADING || progress.status == DownloadStatus.COMPLETED) {
+                    LinearProgressIndicator(
+                        progress = { if (progress.finished) 1f else progress.ratio },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Text(
-                    text = if (progress.finished) {
-                        "下载完成"
-                    } else if (progress.total > 0) {
-                        "下载中：${formatSize(progress.processed)} / ${formatSize(progress.total)}"
-                    } else {
-                        "下载中：${formatSize(progress.processed)}"
+                    text = when (progress.status) {
+                        DownloadStatus.QUEUED -> "排队中"
+                        DownloadStatus.DOWNLOADING -> {
+                            if (progress.total > 0) {
+                                "下载中：${formatSize(progress.processed)} / ${formatSize(progress.total)}"
+                            } else {
+                                "下载中：${formatSize(progress.processed)}"
+                            }
+                        }
+                        DownloadStatus.COMPLETED -> "下载完成"
+                        DownloadStatus.FAILED -> "下载失败：${progress.message ?: "未知错误"}"
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = when (progress.status) {
+                        DownloadStatus.FAILED -> MaterialTheme.colorScheme.error
+                        DownloadStatus.COMPLETED -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
             }
             Row(

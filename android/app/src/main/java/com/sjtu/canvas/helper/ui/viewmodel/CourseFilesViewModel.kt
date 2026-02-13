@@ -46,10 +46,25 @@ sealed class CourseFilesUiState {
 data class DownloadProgress(
     val processed: Long,
     val total: Long,
-    val finished: Boolean = false
+    val status: DownloadStatus = DownloadStatus.DOWNLOADING,
+    val message: String? = null
 ) {
     val ratio: Float
-        get() = if (total > 0) (processed.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+        get() = when {
+            status == DownloadStatus.COMPLETED -> 1f
+            total > 0 -> (processed.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+            else -> 0f
+        }
+
+    val finished: Boolean
+        get() = status == DownloadStatus.COMPLETED || status == DownloadStatus.FAILED
+}
+
+enum class DownloadStatus {
+    QUEUED,
+    DOWNLOADING,
+    COMPLETED,
+    FAILED
 }
 
 sealed class CourseFilesEvent {
@@ -63,7 +78,7 @@ class CourseFilesViewModel @Inject constructor(
     private val userPreferences: UserPreferences,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
-) : ViewModel() {
+) : SelectableScreenViewModel() {
 
     private val courseId: Long = savedStateHandle.get<String>("courseId")?.toLongOrNull() ?: 0L
 
@@ -176,44 +191,11 @@ class CourseFilesViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
             val tree = getRootTreeDocument() ?: return@launch
-            val relativeFolder = resolveRelativeFolder(file, state.foldersMap) ?: run {
-                _events.emit(CourseFilesEvent.Message("无法解析文件目录: ${file.displayName}"))
-                return@launch
-            }
-
-            val courseDir = ensureDirectory(tree, courseIdentifier())
-            if (courseDir == null) {
-                _events.emit(CourseFilesEvent.Message("创建课程目录失败"))
-                return@launch
-            }
-            val targetDir = ensureDirectory(courseDir, relativeFolder)
-            if (targetDir == null) {
-                _events.emit(CourseFilesEvent.Message("创建目标目录失败: $relativeFolder"))
-                return@launch
-            }
-
-            repository.downloadCourseFileBytesWithProgress(file) { processed, total ->
-                _downloadProgress.value = _downloadProgress.value + (
-                    file.id to DownloadProgress(processed = processed, total = total)
-                )
-            }
-                .onSuccess { bytes ->
-                    val saved = writeBytesToFile(targetDir, file, bytes)
-                    if (saved) {
-                        val finalTotal = _downloadProgress.value[file.id]?.total ?: file.size ?: bytes.size.toLong()
-                        markProgressFinished(
-                            fileId = file.id,
-                            processed = bytes.size.toLong(),
-                            total = if (finalTotal > 0) finalTotal else bytes.size.toLong()
-                        )
-                        _events.emit(CourseFilesEvent.Message("已下载: ${file.displayName}"))
-                    } else {
-                        _downloadProgress.value = _downloadProgress.value - file.id
-                        _events.emit(CourseFilesEvent.Message("写入失败: ${file.displayName}"))
-                    }
+            downloadFileToStorage(file, state, tree)
+                .onSuccess {
+                    _events.emit(CourseFilesEvent.Message("已下载: ${file.displayName}"))
                 }
                 .onFailure {
-                    _downloadProgress.value = _downloadProgress.value - file.id
                     _events.emit(CourseFilesEvent.Message(it.message ?: "下载失败: ${file.displayName}"))
                 }
         }
@@ -225,40 +207,35 @@ class CourseFilesViewModel @Inject constructor(
             val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
             val tree = getRootTreeDocument() ?: return@launch
 
-            val courseDir = ensureDirectory(tree, courseIdentifier())
-            if (courseDir == null) {
-                _events.emit(CourseFilesEvent.Message("创建课程目录失败"))
-                return@launch
-            }
-
             var successCount = 0
-            files.forEach { file ->
-                val relativeFolder = resolveRelativeFolder(file, state.foldersMap) ?: return@forEach
-                val targetDir = ensureDirectory(courseDir, relativeFolder) ?: return@forEach
+            var failureCount = 0
+            val failedFiles = mutableListOf<String>()
 
-                repository.downloadCourseFileBytesWithProgress(file) { processed, total ->
-                    _downloadProgress.value = _downloadProgress.value + (
-                        file.id to DownloadProgress(processed = processed, total = total)
-                    )
-                }
-                    .onSuccess { bytes ->
-                        if (writeBytesToFile(targetDir, file, bytes)) {
-                            successCount += 1
-                            val finalTotal = _downloadProgress.value[file.id]?.total ?: file.size ?: bytes.size.toLong()
-                            markProgressFinished(
-                                fileId = file.id,
-                                processed = bytes.size.toLong(),
-                                total = if (finalTotal > 0) finalTotal else bytes.size.toLong()
-                            )
-                        } else {
-                            _downloadProgress.value = _downloadProgress.value - file.id
-                        }
-                    }
+            files.forEach { file ->
+                downloadFileToStorage(file, state, tree)
+                    .onSuccess { successCount += 1 }
                     .onFailure {
-                        _downloadProgress.value = _downloadProgress.value - file.id
+                        failureCount += 1
+                        failedFiles.add(file.displayName)
                     }
             }
-            _events.emit(CourseFilesEvent.Message("批量下载完成：$successCount / ${files.size}"))
+
+            val message = when {
+                failureCount == 0 -> "批量下载已启动：$successCount 个文件"
+                successCount == 0 -> {
+                    val details = failedFiles.take(3).joinToString(", ")
+                    if (failedFiles.size > 3) {
+                        "批量下载失败：无法启动任何下载。$details 等"
+                    } else {
+                        "批量下载失败：$details"
+                    }
+                }
+                else -> {
+                    val details = failedFiles.take(2).joinToString(", ")
+                    "批量下载已启动：$successCount 成功，$failureCount 失败。失败文件：$details"
+                }
+            }
+            _events.emit(CourseFilesEvent.Message(message))
         }
     }
 
@@ -272,84 +249,183 @@ class CourseFilesViewModel @Inject constructor(
             }
             val courseDir = findDirectory(tree, courseIdentifier()) ?: run {
                 _events.emit(CourseFilesEvent.Message("文件未下载：${file.displayName}"))
+                downloadFileToStorage(file, state, tree)
+                    .onSuccess {
+                        openFile(file)
+                    }
+                    .onFailure {
+                        _events.emit(CourseFilesEvent.Message(it.message ?: "下载失败: ${file.displayName}"))
+                    }
                 return@launch
             }
-            val targetDir = findDirectory(courseDir, relativeFolder) ?: run {
-                _events.emit(CourseFilesEvent.Message("文件未下载：${file.displayName}"))
+
+            val targetDir = findDirectory(courseDir, relativeFolder)
+            val localFile = targetDir?.findFile(file.displayName)
+
+            if (localFile != null && localFile.isFile) {
+                _events.emit(
+                    CourseFilesEvent.OpenFile(
+                        uri = localFile.uri,
+                        mimeType = file.contentType ?: "*/*"
+                    )
+                )
                 return@launch
             }
-            val targetFile = targetDir.findFile(file.displayName)
-            if (targetFile == null || !targetFile.isFile) {
-                _events.emit(CourseFilesEvent.Message("文件未下载：${file.displayName}"))
-                return@launch
-            }
-            _events.emit(CourseFilesEvent.OpenFile(
-                uri = targetFile.uri,
-                mimeType = file.contentType ?: "application/octet-stream"
-            ))
+
+            _events.emit(CourseFilesEvent.Message("文件未下载，正在下载：${file.displayName}"))
+            downloadFileToStorage(file, state, tree)
+                .onSuccess {
+                    val refreshedCourseDir = findDirectory(tree, courseIdentifier())
+                    val refreshedTargetDir = refreshedCourseDir?.let { findDirectory(it, relativeFolder) }
+                    val refreshedFile = refreshedTargetDir?.findFile(file.displayName)
+                    if (refreshedFile != null && refreshedFile.isFile) {
+                        _events.emit(
+                            CourseFilesEvent.OpenFile(
+                                uri = refreshedFile.uri,
+                                mimeType = file.contentType ?: "*/*"
+                            )
+                        )
+                    } else {
+                        _events.emit(CourseFilesEvent.Message("下载完成但无法定位文件：${file.displayName}"))
+                    }
+                }
+                .onFailure {
+                    _events.emit(CourseFilesEvent.Message(it.message ?: "下载失败: ${file.displayName}"))
+                }
         }
     }
 
     fun syncAll() {
+        if (_isSyncing.value) return
         viewModelScope.launch {
             val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
-            if (_isSyncing.value) return@launch
-
             val tree = getRootTreeDocument() ?: return@launch
-            val courseDir = ensureDirectory(tree, courseIdentifier())
-            if (courseDir == null) {
-                _events.emit(CourseFilesEvent.Message("创建课程目录失败"))
+            val filesToSync = state.currentFiles.filter { !it.url.isNullOrBlank() }
+            if (filesToSync.isEmpty()) {
+                _events.emit(CourseFilesEvent.Message("当前目录没有可同步的文件"))
                 return@launch
             }
 
             _isSyncing.value = true
+            _syncingCount.value = filesToSync.size
             try {
-                val filesToSync = state.allFiles.filter { file ->
-                    val relativeFolder = resolveRelativeFolder(file, state.foldersMap)
-                    if (relativeFolder == null) {
-                        false
-                    } else {
-                        val targetDir = findDirectory(courseDir, relativeFolder)
-                        targetDir?.findFile(file.displayName) == null
-                    }
-                }
-
-                _syncingCount.value = filesToSync.size
-                if (filesToSync.isEmpty()) {
-                    _events.emit(CourseFilesEvent.Message("已同步，无需下载"))
-                    return@launch
-                }
-
                 var successCount = 0
                 filesToSync.forEach { file ->
-                    val relativeFolder = resolveRelativeFolder(file, state.foldersMap) ?: return@forEach
-                    val targetDir = ensureDirectory(courseDir, relativeFolder) ?: return@forEach
-                    repository.downloadCourseFileBytesWithProgress(file) { processed, total ->
-                        _downloadProgress.value = _downloadProgress.value + (
-                            file.id to DownloadProgress(processed = processed, total = total)
-                        )
-                    }
-                        .onSuccess { bytes ->
-                            if (writeBytesToFile(targetDir, file, bytes)) {
-                                successCount += 1
-                                val finalTotal = _downloadProgress.value[file.id]?.total ?: file.size ?: bytes.size.toLong()
-                                markProgressFinished(
-                                    fileId = file.id,
-                                    processed = bytes.size.toLong(),
-                                    total = if (finalTotal > 0) finalTotal else bytes.size.toLong()
-                                )
-                            } else {
-                                _downloadProgress.value = _downloadProgress.value - file.id
-                            }
-                        }
-                        .onFailure {
-                            _downloadProgress.value = _downloadProgress.value - file.id
-                        }
+                    downloadFileToStorage(file, state, tree)
+                        .onSuccess { successCount += 1 }
                 }
                 _events.emit(CourseFilesEvent.Message("同步完成：$successCount / ${filesToSync.size}"))
             } finally {
                 _isSyncing.value = false
                 _syncingCount.value = 0
+            }
+        }
+    }
+
+    private suspend fun downloadFileToStorage(
+        file: CanvasCourseFile,
+        state: CourseFilesUiState.Success,
+        rootTree: DocumentFile
+    ): Result<Unit> {
+        if (file.url.isNullOrBlank()) {
+            markProgressFailed(file.id, "无有效URL")
+            return Result.failure(IllegalArgumentException("无有效URL"))
+        }
+
+        markProgressQueued(file.id, file.size ?: 0L)
+
+        val relativeFolder = resolveRelativeFolder(file, state.foldersMap) ?: run {
+            markProgressFailed(file.id, "无法解析文件目录")
+            return Result.failure(IllegalStateException("无法解析文件目录: ${file.displayName}"))
+        }
+
+        val courseDir = ensureDirectory(rootTree, courseIdentifier()) ?: run {
+            markProgressFailed(file.id, "创建课程目录失败")
+            return Result.failure(IllegalStateException("创建课程目录失败"))
+        }
+
+        val targetDir = ensureDirectory(courseDir, relativeFolder) ?: run {
+            markProgressFailed(file.id, "创建目标目录失败")
+            return Result.failure(IllegalStateException("创建目标目录失败: $relativeFolder"))
+        }
+
+        return repository.downloadCourseFileBytesWithProgress(file) { processed, total ->
+            markProgressDownloading(file.id, processed, total)
+        }.fold(
+            onSuccess = { bytes ->
+                if (writeBytesToFile(targetDir, file, bytes)) {
+                    val finalTotal = _downloadProgress.value[file.id]?.total
+                        ?.takeIf { it > 0 }
+                        ?: file.size
+                        ?: bytes.size.toLong()
+                    markProgressCompleted(file.id, bytes.size.toLong(), finalTotal)
+                    Result.success(Unit)
+                } else {
+                    markProgressFailed(file.id, "写入失败")
+                    Result.failure(IllegalStateException("写入失败: ${file.displayName}"))
+                }
+            },
+            onFailure = {
+                markProgressFailed(file.id, it.message ?: "下载失败")
+                Result.failure(it)
+            }
+        )
+    }
+
+    private fun markProgressQueued(fileId: Long, total: Long) {
+        _downloadProgress.value = _downloadProgress.value + (
+            fileId to DownloadProgress(
+                processed = 0L,
+                total = total,
+                status = DownloadStatus.QUEUED,
+                message = "排队中"
+            )
+        )
+    }
+
+    private fun markProgressDownloading(fileId: Long, processed: Long, total: Long) {
+        _downloadProgress.value = _downloadProgress.value + (
+            fileId to DownloadProgress(
+                processed = processed,
+                total = total,
+                status = DownloadStatus.DOWNLOADING,
+                message = null
+            )
+        )
+    }
+
+    private fun markProgressCompleted(fileId: Long, processed: Long, total: Long) {
+        val completedProgress = DownloadProgress(
+            processed = processed,
+            total = total,
+            status = DownloadStatus.COMPLETED,
+            message = "下载完成"
+        )
+        _downloadProgress.value = _downloadProgress.value + (fileId to completedProgress)
+        clearTerminalProgressLater(fileId, completedProgress, 2500)
+    }
+
+    private fun markProgressFailed(fileId: Long, message: String) {
+        val current = _downloadProgress.value[fileId]
+        val failedProgress = DownloadProgress(
+            processed = current?.processed ?: 0L,
+            total = current?.total ?: 0L,
+            status = DownloadStatus.FAILED,
+            message = message
+        )
+        _downloadProgress.value = _downloadProgress.value + (fileId to failedProgress)
+        clearTerminalProgressLater(fileId, failedProgress, 5000)
+    }
+
+    private fun clearTerminalProgressLater(
+        fileId: Long,
+        target: DownloadProgress,
+        delayMs: Long
+    ) {
+        viewModelScope.launch {
+            delay(delayMs)
+            if (_downloadProgress.value[fileId] == target) {
+                _downloadProgress.value = _downloadProgress.value - fileId
             }
         }
     }
@@ -451,19 +527,4 @@ class CourseFilesViewModel @Inject constructor(
         }.isSuccess
     }
 
-    private fun markProgressFinished(fileId: Long, processed: Long, total: Long) {
-        val finishedProgress = DownloadProgress(
-            processed = processed,
-            total = total,
-            finished = true
-        )
-        _downloadProgress.value = _downloadProgress.value + (fileId to finishedProgress)
-        viewModelScope.launch {
-            delay(1500)
-            val current = _downloadProgress.value[fileId]
-            if (current == finishedProgress) {
-                _downloadProgress.value = _downloadProgress.value - fileId
-            }
-        }
-    }
 }
