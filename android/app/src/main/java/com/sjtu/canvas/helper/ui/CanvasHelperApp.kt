@@ -106,8 +106,7 @@ fun CanvasHelperApp() {
                                 }
                             }
                             
-                            IconButton(
-                                onClick = navigateToItem,
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .selectable(
@@ -115,6 +114,8 @@ fun CanvasHelperApp() {
                                         onClick = navigateToItem,
                                         role = Role.Tab
                                     )
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
                             ) {
                                 Column(
                                     horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
