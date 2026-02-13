@@ -1,11 +1,11 @@
 # SJTU Canvas Helper - Android
 
-这是 SJTU Canvas Helper 的 Android 版本，使用 Material You 设计系统 (Material 3) 和 Kotlin 开发。
+这是 SJTU Canvas Helper 的 Android 版本，使用 Material Design 2 (Material 2) 和 Kotlin 开发。
 
 ## 功能特性
 
-- ✅ **Material You 设计**: 采用最新的 Material 3 设计系统，支持动态主题色
-- ✅ **自适应布局**: 针对手机和平板优化，平板使用 NavigationRail，手机使用 BottomNavigationBar
+- ✅ **Material Design 2**: 采用经典的 Material 2 设计系统，简洁稳重
+- ✅ **自适应布局**: 针对手机和平板优化，平板使用侧边导航栏，手机使用 BottomNavigationBar
 - ✅ **登录功能**: 使用 Canvas Token 进行身份验证
 - ✅ **课程展示**: 以卡片形式展示课程列表
 - ✅ **作业上传**: 支持选择文件并上传作业
