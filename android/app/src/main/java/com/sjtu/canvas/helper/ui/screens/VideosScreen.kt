@@ -9,6 +9,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,9 +27,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.PlayArrow
@@ -73,13 +78,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -94,6 +99,9 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.sjtu.canvas.helper.R
 import com.sjtu.canvas.helper.data.model.SjtuCanvasVideo
 import com.sjtu.canvas.helper.data.model.SjtuVideoPlayInfo
@@ -133,6 +141,37 @@ fun VideosScreen(
     var currentPosition by remember { mutableStateOf(0L) }
     var isPlaying by remember { mutableStateOf(true) }
     val immersivePlayerMode = fullscreen || isLandscape
+    val showTranscriptPanel = !isLandscape && !fullscreen
+
+    var transcriptLines by remember { mutableStateOf<List<TranscriptLine>>(emptyList()) }
+    var activeTranscriptIndex by remember { mutableStateOf<Int?>(null) }
+    var transcriptSeekPositionMs by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(subtitlePath) {
+        transcriptLines = if (!subtitlePath.isNullOrBlank()) {
+            parseWebVttTranscript(subtitlePath!!)
+        } else {
+            emptyList()
+        }
+        activeTranscriptIndex = null
+        transcriptSeekPositionMs = null
+    }
+
+    LaunchedEffect(currentPosition, transcriptLines) {
+        if (transcriptLines.isEmpty()) {
+            activeTranscriptIndex = null
+        } else {
+            val idx = transcriptLines.indexOfLast { currentPosition >= it.startMs }
+            activeTranscriptIndex = if (idx >= 0) idx else null
+        }
+    }
+
+    // 竖屏非全屏时强制关闭视频内嵌字幕，仅通过 Transcript 面板展示
+    LaunchedEffect(showTranscriptPanel) {
+        if (showTranscriptPanel && subtitleEnabled) {
+            subtitleEnabled = false
+        }
+    }
 
     LaunchedEffect(loginState) {
         if (loginState is VideoLoginState.LoggedIn) {
@@ -227,7 +266,7 @@ fun VideosScreen(
                             primaryUrl = primaryPlay!!.rtmpUrlHdv,
                             secondaryUrl = if (dualMode) secondaryPlay?.rtmpUrlHdv else null,
                             subtitlePath = subtitlePath,
-                            subtitleEnabled = subtitleEnabled,
+                            subtitleEnabled = subtitleEnabled && !showTranscriptPanel,
                             speed = speed,
                             primaryMuted = primaryMuted,
                             secondaryMuted = secondaryMuted,
@@ -259,7 +298,18 @@ fun VideosScreen(
                             onSubtitleEnabledChange = { subtitleEnabled = it },
                             onPositionChange = { currentPosition = it },
                             onPlayingChange = { isPlaying = it },
+                            transcriptSeekPositionMs = transcriptSeekPositionMs,
                         )
+
+                        if (showTranscriptPanel && transcriptLines.isNotEmpty()) {
+                            TranscriptPanel(
+                                lines = transcriptLines,
+                                activeIndex = activeTranscriptIndex,
+                                onLineClick = { line ->
+                                    transcriptSeekPositionMs = line.startMs
+                                }
+                            )
+                        }
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
@@ -420,7 +470,7 @@ private fun VideoLoginPanel(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "SJTU 视频回放需要 JAccount 会话",
+                text = "SJTU 视频回放需要 jAccount 会话",
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -629,6 +679,7 @@ private fun PlayerArea(
     onSubtitleEnabledChange: (Boolean) -> Unit,
     onPositionChange: (Long) -> Unit,
     onPlayingChange: (Boolean) -> Unit,
+    transcriptSeekPositionMs: Long? = null,
 ) {
     var secondaryOffsetX by remember { mutableFloatStateOf(0f) }
     var secondaryOffsetY by remember { mutableFloatStateOf(0f) }
@@ -662,12 +713,14 @@ private fun PlayerArea(
             dualMode = dualMode,
             onDualModeChange = onDualModeChange,
             fullscreen = fullscreen,
+            externalSeekToMs = transcriptSeekPositionMs,
         )
 
         if (secondaryUrl != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
+                    .zIndex(20f)
                     .offset { IntOffset(secondaryOffsetX.toInt(), secondaryOffsetY.toInt()) }
                     .padding(10.dp)
                     .width(180.dp)
@@ -869,6 +922,7 @@ private fun SjtuVideoPlayerSurface(
     onDualModeChange: ((Boolean) -> Unit)? = null,
     compact: Boolean = false,
     fullscreen: Boolean = false,
+    externalSeekToMs: Long? = null,
 ) {
     val context = LocalContext.current
     var holdSpeedBoost by remember { mutableStateOf(false) }
@@ -946,6 +1000,16 @@ private fun SjtuVideoPlayerSurface(
     // 同步播放/暂停状态
     LaunchedEffect(isPlaying) {
         player.playWhenReady = isPlaying
+    }
+
+    // 处理来自 Transcript 面板的外部跳转请求（仅主屏）
+    var lastExternalSeekMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(externalSeekToMs) {
+        if (roleLabel == "主" && externalSeekToMs != null && externalSeekToMs != lastExternalSeekMs) {
+            lastExternalSeekMs = externalSeekToMs
+            player.seekTo(externalSeekToMs)
+            onPositionChange(externalSeekToMs)
+        }
     }
 
     // 主屏使用listener和定期轮询双重机制报告播放位置
@@ -1205,6 +1269,180 @@ private fun formatPlaybackTime(ms: Long): String {
     }
 }
 
+// 简单的字幕行模型，用于 Transcript 面板
+private data class TranscriptLine(
+    val startMs: Long,
+    val text: String,
+)
+
+// 解析本地 WebVTT 字幕文件为 TranscriptLine 列表（仅使用起始时间与文本）
+private suspend fun parseWebVttTranscript(path: String): List<TranscriptLine> = withContext(Dispatchers.IO) {
+    val file = File(path)
+    if (!file.exists() || !file.isFile) return@withContext emptyList()
+
+    val lines = file.readLines()
+    val result = mutableListOf<TranscriptLine>()
+
+    var i = 0
+    while (i < lines.size) {
+        val line = lines[i].trim()
+        if (line.isEmpty() || line.equals("WEBVTT", ignoreCase = true)) {
+            i++
+            continue
+        }
+
+        // 可能存在 cue id，跳过到时间轴行
+        var timeLine = line
+        if (!timeLine.contains("-->") && i + 1 < lines.size) {
+            timeLine = lines[i + 1].trim()
+            i++
+        }
+
+        if (!timeLine.contains("-->")) {
+            i++
+            continue
+        }
+
+        val parts = timeLine.split("-->")
+        val startPart = parts.getOrNull(0)?.trim().orEmpty()
+        val startMs = parseVttTimeToMs(startPart)
+        if (startMs == null) {
+            i++
+            continue
+        }
+
+        // 收集接下来的文本行，直到空行或新时间块
+        val textBuilder = StringBuilder()
+        i++
+        while (i < lines.size) {
+            val t = lines[i]
+            if (t.isBlank()) break
+            if (t.contains("-->")) break
+            if (textBuilder.isNotEmpty()) textBuilder.append('\n')
+            textBuilder.append(t.trim())
+            i++
+        }
+
+        val text = textBuilder.toString().trim()
+        if (text.isNotEmpty()) {
+            result.add(TranscriptLine(startMs = startMs, text = text))
+        }
+    }
+
+    result.sortedBy { it.startMs }
+}
+
+private fun parseVttTimeToMs(raw: String): Long? {
+    // 支持 mm:ss.xxx 或 hh:mm:ss.xxx
+    val mainAndMs = raw.split('.', limit = 2)
+    val timePart = mainAndMs.getOrNull(0)?.trim().orEmpty()
+    val msPart = mainAndMs.getOrNull(1)?.takeWhile { it.isDigit() } ?: "0"
+
+    val segments = timePart.split(':')
+    if (segments.size !in 2..3) return null
+
+    return try {
+        val hours: Long
+        val minutes: Long
+        val seconds: Long
+        if (segments.size == 3) {
+            hours = segments[0].toLong()
+            minutes = segments[1].toLong()
+            seconds = segments[2].toLong()
+        } else {
+            hours = 0
+            minutes = segments[0].toLong()
+            seconds = segments[1].toLong()
+        }
+        val millis = msPart.padEnd(3, '0').take(3).toLong()
+        ((hours * 3600 + minutes * 60 + seconds) * 1000) + millis
+    } catch (_: NumberFormatException) {
+        null
+    }
+}
+
+@Composable
+private fun TranscriptPanel(
+    lines: List<TranscriptLine>,
+    activeIndex: Int?,
+    onLineClick: (TranscriptLine) -> Unit,
+) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(activeIndex, lines.size) {
+        if (activeIndex != null && activeIndex in lines.indices) {
+            listState.animateScrollToItem(activeIndex.coerceAtMost(lines.lastIndex))
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 8.dp)
+    ) {
+        Text(
+            text = "字幕 Transcript",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            itemsIndexed(lines) { index, line ->
+                val isActive = index == activeIndex
+                Surface(
+                    tonalElevation = if (isActive) 2.dp else 0.dp,
+                    shadowElevation = if (isActive) 1.dp else 0.dp,
+                    color = if (isActive) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures {
+                                    onLineClick(line)
+                                }
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = formatPlaybackTime(line.startMs),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isActive) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.width(60.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = line.text,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isActive) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            maxLines = 4
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun BoxScope.PlayerOverlayControls(
     roleLabel: String,
@@ -1264,7 +1502,7 @@ private fun BoxScope.PlayerOverlayControls(
 
         Box {
             IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.Settings, contentDescription = null)
+                Icon(Icons.Default.Dashboard, contentDescription = null)
             }
             DropdownMenu(expanded = settingsOpen, onDismissRequest = { settingsOpen = false }) {
                 if (onOpenSelector != null) {
