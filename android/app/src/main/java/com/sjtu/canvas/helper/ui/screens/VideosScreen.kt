@@ -1083,7 +1083,8 @@ private fun SjtuVideoPlayerSurface(
                 val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
                 val touchSlop = ViewConfiguration.get(ctx).scaledTouchSlop.toFloat()
                 PlayerView(ctx).apply {
-                    useController = true
+                    // 紧凑模式（副屏）不展示自带控制栏，避免遮挡画面
+                    useController = !compact
                     this.player = player
                     var longPressTriggered = false
                     var dragStarted = false
