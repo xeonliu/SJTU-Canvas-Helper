@@ -3,8 +3,7 @@ package com.sjtu.canvas.helper.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-//import androidx.compose.material3.windowsizeclass.*
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -26,7 +25,6 @@ data class NavigationItem(
     val label: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CanvasHelperApp() {
     val navController = rememberNavController()
@@ -52,12 +50,12 @@ fun CanvasHelperApp() {
     Scaffold(
         bottomBar = {
             if (!useNavigationRail) {
-                NavigationBar {
+                BottomNavigation {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
                     
                     navigationItems.forEach { item ->
-                        NavigationBarItem(
+                        BottomNavigationItem(
                             icon = { Icon(item.icon, contentDescription = item.label) },
                             label = { Text(item.label) },
                             selected = currentRoute == item.route,
@@ -80,26 +78,53 @@ fun CanvasHelperApp() {
                 .padding(paddingValues)
         ) {
             if (useNavigationRail) {
-                NavigationRail(
-                    modifier = Modifier.fillMaxHeight()
+                // Material 2 doesn't have NavigationRail, we'll use a vertical navigation instead
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(72.dp),
+                    elevation = 4.dp
                 ) {
-                    Spacer(Modifier.height(16.dp))
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
-                    val currentRoute = navBackStackEntry?.destination?.route
-                    
-                    navigationItems.forEach { item ->
-                        NavigationRailItem(
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
-                            selected = currentRoute == item.route,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(Screen.Courses.route) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+                    Column(
+                        modifier = Modifier.fillMaxHeight()
+                    ) {
+                        Spacer(Modifier.height(16.dp))
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                        val currentRoute = navBackStackEntry?.destination?.route
+                        
+                        navigationItems.forEach { item ->
+                            IconButton(
+                                onClick = {
+                                    navController.navigate(item.route) {
+                                        popUpTo(Screen.Courses.route) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        item.icon, 
+                                        contentDescription = item.label,
+                                        tint = if (currentRoute == item.route) 
+                                            MaterialTheme.colors.primary 
+                                        else 
+                                            MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    Text(
+                                        text = item.label,
+                                        style = MaterialTheme.typography.caption,
+                                        color = if (currentRoute == item.route) 
+                                            MaterialTheme.colors.primary 
+                                        else 
+                                            MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                    )
                                 }
                             }
-                        )
+                        }
                     }
                 }
             }

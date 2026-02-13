@@ -31,24 +31,22 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.Button
+import androidx.compose.material.Card
+import androidx.compose.material.Checkbox
+import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.LinearProgressIndicator
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Scaffold
+import androidx.compose.material.SnackbarHost
+import androidx.compose.material.SnackbarHostState
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
+import androidx.compose.material.TopAppBar
+import androidx.compose.material.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -70,7 +68,6 @@ import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesEvent
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesUiState
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseFilesScreen(
     courseId: Long,
@@ -119,10 +116,8 @@ fun CourseFilesScreen(
                         Icon(Icons.Default.Refresh, contentDescription = null)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                backgroundColor = MaterialTheme.colors.primarySurface,
+                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -279,7 +274,7 @@ private fun BreadcrumbNavigation(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(MaterialTheme.colors.surface.copy(alpha = 0.9f))
             .padding(8.dp)
     ) {
         Row(
@@ -303,8 +298,8 @@ private fun BreadcrumbNavigation(
             }
             Text(
                 text = "当前路径：",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
             )
         }
         
@@ -318,22 +313,22 @@ private fun BreadcrumbNavigation(
             verticalAlignment = Alignment.CenterVertically
         ) {
             folderPath.forEachIndexed { index, folder ->
-                FilledTonalButton(
+                OutlinedButton(
                     onClick = { onFolderClick(folder) },
                     modifier = Modifier.height(32.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
                     Text(
                         text = folder.name ?: "未知",
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.caption
                     )
                 }
                 if (index < folderPath.size - 1) {
                     Text(
                         text = "/",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.caption,
                         modifier = Modifier.padding(horizontal = 4.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -356,13 +351,11 @@ private fun FolderItem(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = if (isSelected) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+        elevation = 1.dp,
+        backgroundColor = if (isSelected) {
+            MaterialTheme.colors.secondary.copy(alpha = 0.12f)
         } else {
-            CardDefaults.cardColors()
+            MaterialTheme.colors.surface
         }
     ) {
         Row(
@@ -387,7 +380,7 @@ private fun FolderItem(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "文件夹",
-                        tint = MaterialTheme.colorScheme.secondary,
+                        tint = MaterialTheme.colors.secondary,
                         modifier = Modifier
                             .size(24.dp)
                             .rotate(270f)
@@ -399,12 +392,12 @@ private fun FolderItem(
                 ) {
                     Text(
                         text = folder.name ?: "未知文件夹",
-                        style = MaterialTheme.typography.titleSmall
+                        style = MaterialTheme.typography.subtitle2
                     )
                     Text(
                         text = folder.fullName ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
                         maxLines = 1
                     )
                 }
@@ -438,13 +431,11 @@ private fun CourseFileRow(
                 onClick = {},
                 onLongClick = onLongClick
             ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = if (isSelected) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+        elevation = 1.dp,
+        backgroundColor = if (isSelected) {
+            MaterialTheme.colors.secondary.copy(alpha = 0.12f)
         } else {
-            CardDefaults.cardColors()
+            MaterialTheme.colors.surface
         }
     ) {
         Column(
@@ -469,7 +460,7 @@ private fun CourseFileRow(
                 }
                 Text(
                     file.displayName,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.subtitle2,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -486,8 +477,8 @@ private fun CourseFileRow(
                     } else {
                         "下载中：${formatSize(progress.processed)}"
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.primary
                 )
             }
             Row(
@@ -497,11 +488,11 @@ private fun CourseFileRow(
             ) {
                 Text(
                     text = file.size?.let { formatSize(it) } ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = onDownload, enabled = !syncing) {
+                    OutlinedButton(onClick = onDownload, enabled = !syncing) {
                         Icon(Icons.Default.Download, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("下载")
@@ -526,8 +517,8 @@ private fun BatchActionBar(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.secondaryContainer),
-        shadowElevation = 8.dp
+            .background(MaterialTheme.colors.secondary.copy(alpha = 0.12f)),
+        elevation = 8.dp
     ) {
         Row(
             modifier = Modifier
@@ -538,13 +529,13 @@ private fun BatchActionBar(
         ) {
             Text(
                 text = "已选中 $selectedCount 个文件",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                style = MaterialTheme.typography.button,
+                color = MaterialTheme.colors.onSurface
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilledTonalButton(onClick = onDownloadClick) {
+                OutlinedButton(onClick = onDownloadClick) {
                     Icon(Icons.Default.Download, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("批量下载")

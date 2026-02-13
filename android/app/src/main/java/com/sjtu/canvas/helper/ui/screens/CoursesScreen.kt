@@ -8,7 +8,7 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material3.*
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,7 +23,6 @@ import com.sjtu.canvas.helper.ui.viewmodel.CoursesUiState
 import com.sjtu.canvas.helper.ui.viewmodel.CoursesViewModel
 import java.time.OffsetDateTime
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CoursesScreen(
     onAssignmentsClick: (Long) -> Unit,
@@ -37,10 +36,8 @@ fun CoursesScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.courses_title)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                backgroundColor = MaterialTheme.colors.primarySurface,
+                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
             )
         }
     ) { paddingValues ->
@@ -114,7 +111,6 @@ fun CoursesScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseCard(
     course: Course,
@@ -124,7 +120,7 @@ fun CourseCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -139,7 +135,7 @@ fun CourseCard(
                 Surface(
                     modifier = Modifier.size(56.dp),
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = MaterialTheme.colors.primarySurface
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -148,7 +144,7 @@ fun CourseCard(
                         Icon(
                             imageVector = Icons.Default.Book,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            tint = contentColorFor(MaterialTheme.colors.primarySurface)
                         )
                     }
                 }
@@ -157,8 +153,8 @@ fun CourseCard(
 
                 Text(
                     text = course.name?.takeIf { it.isNotBlank() } ?: "未命名课程",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.h6,
+                    color = MaterialTheme.colors.onSurface,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -167,7 +163,7 @@ fun CourseCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilledTonalButton(
+                OutlinedButton(
                     onClick = onAssignmentsClick,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
@@ -185,7 +181,7 @@ fun CourseCard(
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(stringResource(R.string.nav_videos), maxLines = 1)
                 }
-                FilledTonalButton(
+                OutlinedButton(
                     onClick = onFilesClick,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
@@ -208,10 +204,10 @@ private fun TimelineSectionHeader(title: String) {
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
+            style = MaterialTheme.typography.h6,
+            color = MaterialTheme.colors.primary
         )
-        HorizontalDivider(modifier = Modifier.padding(top = 6.dp))
+        Divider(modifier = Modifier.padding(top = 6.dp))
     }
 }
 
@@ -231,14 +227,14 @@ private fun TimelineCourseItem(content: @Composable () -> Unit) {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(MaterialTheme.colors.primary)
             )
             Box(
                 modifier = Modifier
                     .padding(top = 4.dp)
                     .width(2.dp)
                     .height(80.dp)
-                    .background(MaterialTheme.colorScheme.outlineVariant)
+                    .background(MaterialTheme.colors.onSurface.copy(alpha = 0.12f))
             )
         }
         Box(modifier = Modifier.weight(1f)) {

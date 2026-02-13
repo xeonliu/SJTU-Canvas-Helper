@@ -37,27 +37,27 @@ import androidx.compose.material.icons.filled.Splitscreen
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.Button
+import androidx.compose.material.Card
+import androidx.compose.material.Chip
+import androidx.compose.material.ChipDefaults
+import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Divider
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.Slider
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Scaffold
+import androidx.compose.material.Surface
+import androidx.compose.material.Switch
+import androidx.compose.material.Text
+import androidx.compose.material.TopAppBar
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.contentColorFor
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -103,7 +103,6 @@ import com.sjtu.canvas.helper.ui.viewmodel.VideoLoginState
 import com.sjtu.canvas.helper.ui.viewmodel.VideoLoginViewModel
 import com.sjtu.canvas.helper.util.QrCodeGenerator
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideosScreen(
     courseId: Long,
@@ -169,10 +168,8 @@ fun VideosScreen(
                             Icon(Icons.Default.Refresh, contentDescription = null)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    backgroundColor = MaterialTheme.colors.primarySurface,
+                    contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
                 )
             }
         }
@@ -192,7 +189,7 @@ fun VideosScreen(
                         onStart = { loginViewModel.startQrLogin() },
                         onCancel = { loginViewModel.cancel() }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
                 }
 
                 VideoLoginState.LoggedIn -> Unit
@@ -261,7 +258,7 @@ fun VideosScreen(
                             onPlayingChange = { isPlaying = it },
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
                     }
 
                     if (primaryPlay == null) {
@@ -292,7 +289,7 @@ fun VideosScreen(
                     .fillMaxHeight(0.88f)
                     .padding(16.dp),
                 shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface
+                color = MaterialTheme.colors.surface
             ) {
                 Column {
                     Row(
@@ -302,12 +299,12 @@ fun VideosScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("选择视频与播放源", style = MaterialTheme.typography.titleMedium)
-                        FilledTonalButton(onClick = { selectorDialogOpen = false }) {
+                        Text("选择视频与播放源", style = MaterialTheme.typography.h6)
+                        OutlinedButton(onClick = { selectorDialogOpen = false }) {
                             Text("关闭")
                         }
                     }
-                    HorizontalDivider()
+                    Divider()
                     VideoSelectionList(
                         videos = (uiState as? SjtuVideosUiState.Success)?.videos.orEmpty(),
                         selectedVideo = selectedVideo,
@@ -384,11 +381,11 @@ private fun VideoSelectionList(
 
         item {
             if (videoInfo != null) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                Divider(modifier = Modifier.padding(vertical = 12.dp))
                 Text(
                     text = "播放源",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.h6,
+                    color = MaterialTheme.colors.primary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 videoInfo.videoPlayResponseVoList.forEach { play ->
@@ -416,18 +413,18 @@ private fun VideoLoginPanel(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "SJTU 视频回放需要 JAccount 会话",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.h6
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "请用另一台设备或电脑扫描二维码登录（与桌面版一致）。登录成功后会自动刷新回放列表。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.body2,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
             )
 
             when (state) {
@@ -439,7 +436,7 @@ private fun VideoLoginPanel(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(onClick = onCancel) {
+                        OutlinedButton(onClick = onCancel) {
                             Text("取消")
                         }
                     }
@@ -453,7 +450,7 @@ private fun VideoLoginPanel(
                         Text("正在获取二维码/等待扫码…")
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    FilledTonalButton(onClick = onCancel) {
+                    OutlinedButton(onClick = onCancel) {
                         Text("取消")
                     }
                 }
@@ -462,13 +459,13 @@ private fun VideoLoginPanel(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = state.message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
+                        color = MaterialTheme.colors.error,
+                        style = MaterialTheme.typography.body2
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onStart) { Text("重试") }
-                        FilledTonalButton(onClick = onCancel) { Text("取消") }
+                        OutlinedButton(onClick = onCancel) { Text("取消") }
                     }
                 }
 
@@ -504,7 +501,7 @@ private fun EmptyPanel(hint: String, onLogin: () -> Unit, onReload: () -> Unit) 
             Spacer(modifier = Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onReload) { Text("刷新") }
-                FilledTonalButton(onClick = onLogin) { Text("扫码登录") }
+                OutlinedButton(onClick = onLogin) { Text("扫码登录") }
             }
         }
     }
@@ -518,9 +515,7 @@ private fun CanvasVideoCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        )
+        backgroundColor = if (selected) MaterialTheme.colors.primary.copy(alpha = 0.12f) else MaterialTheme.colors.surface
     ) {
         Row(
             modifier = Modifier
@@ -531,21 +526,21 @@ private fun CanvasVideoCard(
             Surface(
                 modifier = Modifier.size(48.dp),
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colors.primary
             ) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colors.onPrimary)
                 }
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(video.videoName, style = MaterialTheme.typography.titleMedium)
+                Text(video.videoName, style = MaterialTheme.typography.h6)
                 val time = listOfNotNull(video.courseBeginTime, video.courseEndTime)
                     .joinToString(" - ")
                 if (time.isNotBlank()) {
-                    Text(time, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(time, style = MaterialTheme.typography.body2, color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f))
                 }
             }
 
@@ -576,8 +571,8 @@ private fun PlaySourceRow(
                 Text(text = "源 #${play.id}")
                 Text(
                     text = play.rtmpUrlHdv.take(64) + if (play.rtmpUrlHdv.length > 64) "…" else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.body2,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                 )
             }
 
@@ -588,7 +583,7 @@ private fun PlaySourceRow(
                     Text(if (isPrimary) "主" else "设主")
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                FilledTonalButton(onClick = onSecondary) {
+                OutlinedButton(onClick = onSecondary) {
                     Icon(
                         imageVector = if (isSecondary) Icons.Default.Check else Icons.Default.Splitscreen,
                         contentDescription = null
@@ -1132,12 +1127,12 @@ private fun SjtuVideoPlayerSurface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 12.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                color = MaterialTheme.colors.surface.copy(alpha = 0.75f),
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
                     text = "长按加速 2.0x",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.caption,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }
@@ -1149,7 +1144,7 @@ private fun SjtuVideoPlayerSurface(
             val deltaSeconds = kotlin.math.abs(dragSeekDeltaMs) / 1000
             Surface(
                 modifier = Modifier.align(Alignment.Center),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                color = MaterialTheme.colors.surface.copy(alpha = 0.8f),
                 shape = MaterialTheme.shapes.medium
             ) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -1159,12 +1154,12 @@ private fun SjtuVideoPlayerSurface(
                         } else {
                             formatPlaybackTime(dragSeekPreviewMs!!)
                         },
-                        style = MaterialTheme.typography.titleSmall
+                        style = MaterialTheme.typography.subtitle2
                     )
                     Text(
                         text = "$sign${deltaSeconds}s",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -1235,14 +1230,14 @@ private fun BoxScope.PlayerOverlayControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+            color = MaterialTheme.colors.surface.copy(alpha = 0.75f),
             shape = MaterialTheme.shapes.small
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(roleLabel, style = MaterialTheme.typography.labelSmall)
+                Text(roleLabel, style = MaterialTheme.typography.caption)
             }
         }
 

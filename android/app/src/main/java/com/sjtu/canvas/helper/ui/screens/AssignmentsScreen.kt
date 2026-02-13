@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +24,6 @@ import com.sjtu.canvas.helper.ui.viewmodel.AssignmentsUiState
 import com.sjtu.canvas.helper.ui.viewmodel.AssignmentsViewModel
 import com.sjtu.canvas.helper.ui.viewmodel.UploadState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssignmentsScreen(
     courseId: Long,
@@ -54,10 +53,8 @@ fun AssignmentsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                backgroundColor = MaterialTheme.colors.primarySurface,
+                contentColor = contentColorFor(MaterialTheme.colors.primarySurface)
             )
         }
     ) { paddingValues ->
@@ -172,7 +169,6 @@ private fun android.content.Context.resolveFileName(uri: Uri): String {
     return uri.lastPathSegment ?: "upload_file"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssignmentCard(
     assignment: Assignment,
@@ -180,7 +176,7 @@ fun AssignmentCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -189,8 +185,8 @@ fun AssignmentCard(
         ) {
             Text(
                 text = assignment.name?.takeIf { it.isNotBlank() } ?: "未命名作业",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.h6,
+                color = MaterialTheme.colors.onSurface
             )
             
             Spacer(modifier = Modifier.height(8.dp))
@@ -198,8 +194,8 @@ fun AssignmentCard(
             assignment.description?.let { desc ->
                 Text(
                     text = desc,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.body1,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -216,13 +212,13 @@ fun AssignmentCard(
                                 Icons.Default.Schedule,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colors.primary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = dueDate.substring(0, 10), // Simple date formatting
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = MaterialTheme.typography.body2,
+                                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
                             )
                         }
                     }
