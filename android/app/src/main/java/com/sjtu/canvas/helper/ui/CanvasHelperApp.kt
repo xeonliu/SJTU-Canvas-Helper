@@ -98,25 +98,21 @@ fun CanvasHelperApp() {
                         
                         navigationItems.forEach { item ->
                             val isSelected = currentRoute == item.route
+                            val navigateToItem = {
+                                navController.navigate(item.route) {
+                                    popUpTo(Screen.Courses.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                            
                             IconButton(
-                                onClick = {
-                                    navController.navigate(item.route) {
-                                        popUpTo(Screen.Courses.route) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
+                                onClick = navigateToItem,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .selectable(
                                         selected = isSelected,
-                                        onClick = {
-                                            navController.navigate(item.route) {
-                                                popUpTo(Screen.Courses.route) { saveState = true }
-                                                launchSingleTop = true
-                                                restoreState = true
-                                            }
-                                        },
+                                        onClick = navigateToItem,
                                         role = Role.Tab
                                     )
                             ) {
