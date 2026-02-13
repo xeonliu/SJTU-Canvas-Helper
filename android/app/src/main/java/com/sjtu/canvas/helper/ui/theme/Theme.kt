@@ -26,7 +26,6 @@ private val LightColorPalette = lightColors(
 @Composable
 fun CanvasHelperTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colors = if (darkTheme) DarkColorPalette else LightColorPalette

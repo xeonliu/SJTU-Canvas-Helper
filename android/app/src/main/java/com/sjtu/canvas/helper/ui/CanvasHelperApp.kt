@@ -1,6 +1,7 @@
 package com.sjtu.canvas.helper.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.*
@@ -9,6 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -93,6 +97,7 @@ fun CanvasHelperApp() {
                         val currentRoute = navBackStackEntry?.destination?.route
                         
                         navigationItems.forEach { item ->
+                            val isSelected = currentRoute == item.route
                             IconButton(
                                 onClick = {
                                     navController.navigate(item.route) {
@@ -101,7 +106,12 @@ fun CanvasHelperApp() {
                                         restoreState = true
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        selected = isSelected
+                                        role = Role.Tab
+                                    }
                             ) {
                                 Column(
                                     horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
@@ -109,7 +119,7 @@ fun CanvasHelperApp() {
                                     Icon(
                                         item.icon, 
                                         contentDescription = item.label,
-                                        tint = if (currentRoute == item.route) 
+                                        tint = if (isSelected) 
                                             MaterialTheme.colors.primary 
                                         else 
                                             MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
@@ -117,7 +127,7 @@ fun CanvasHelperApp() {
                                     Text(
                                         text = item.label,
                                         style = MaterialTheme.typography.caption,
-                                        color = if (currentRoute == item.route) 
+                                        color = if (isSelected) 
                                             MaterialTheme.colors.primary 
                                         else 
                                             MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
