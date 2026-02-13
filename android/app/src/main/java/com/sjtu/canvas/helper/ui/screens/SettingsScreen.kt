@@ -26,9 +26,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun SettingsScreen() {
     var showTokenDialog by remember { mutableStateOf(false) }
-    var selectedTheme by remember { mutableStateOf("system") }
+    var showThemeDialog by remember { mutableStateOf(false) }
     val viewModel: SettingsViewModel = hiltViewModel()
     val courseFilesTreeUri by viewModel.courseFilesTreeUri.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
     val context = LocalContext.current
 
     val launcher = rememberLauncherForActivityResult(
@@ -86,12 +87,12 @@ fun SettingsScreen() {
                 SettingsItem(
                     icon = Icons.Default.Palette,
                     title = stringResource(R.string.settings_theme),
-                    subtitle = when (selectedTheme) {
-                        "light" -> stringResource(R.string.settings_theme_light)
-                        "dark" -> stringResource(R.string.settings_theme_dark)
-                        else -> stringResource(R.string.settings_theme_system)
+                    subtitle = when (themeMode) {
+                        "light" -> "浅色"
+                        "dark" -> "深色"
+                        else -> "跟随系统"
                     },
-                    onClick = { /* TODO: Show theme selector */ }
+                    onClick = { showThemeDialog = true }
                 )
             }
 
@@ -122,7 +123,7 @@ fun SettingsScreen() {
                 SettingsItem(
                     icon = Icons.Default.Info,
                     title = "版本",
-                    subtitle = "1.0.0",
+                    subtitle = "1.1.0",
                     onClick = { }
                 )
             }
@@ -135,6 +136,17 @@ fun SettingsScreen() {
             onSave = { token ->
                 viewModel.saveCanvasToken(token)
                 showTokenDialog = false
+            }
+        )
+    }
+    
+    if (showThemeDialog) {
+        ThemeDialog(
+            currentTheme = themeMode,
+            onDismiss = { showThemeDialog = false },
+            onThemeSelected = { theme ->
+                viewModel.saveThemeMode(theme)
+                showThemeDialog = false
             }
         )
     }
@@ -215,6 +227,52 @@ fun TokenDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun ThemeDialog(
+    currentTheme: String,
+    onDismiss: () -> Unit,
+    onThemeSelected: (String) -> Unit
+) {
+    val themes = listOf(
+        "system" to "跟随系统",
+        "light" to "浅色",
+        "dark" to "深色"
+    )
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择主题") },
+        text = {
+            Column {
+                themes.forEach { (theme, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onThemeSelected(theme) }
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = currentTheme == theme,
+                            onClick = { onThemeSelected(theme) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
             }
         }
     )

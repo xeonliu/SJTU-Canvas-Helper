@@ -31,10 +31,17 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun CanvasHelperTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: String = "system",
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val systemDarkTheme = isSystemInDarkTheme()
+    val darkTheme = when (themeMode) {
+        "light" -> false
+        "dark" -> true
+        else -> systemDarkTheme // "system"
+    }
+    
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
