@@ -28,6 +28,13 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
@@ -101,6 +108,17 @@ fun CourseFilesScreen(
                 }
             }
         }
+    }
+
+    // 处理文件夹导航返回
+    val canGoBack = when (val state = uiState) {
+        is CourseFilesUiState.Success -> 
+            state.currentFolderId != null && state.foldersMap[state.currentFolderId]?.parentFolderId != null
+        else -> false
+    }
+    
+    BackHandler(enabled = !isSelectionMode && canGoBack) {
+        viewModel.navigateBack()
     }
 
     BackHandler(enabled = isSelectionMode) {
@@ -360,71 +378,46 @@ private fun FolderItem(
                 onClick = onClick, onLongClick = onLongClick
             )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isSelectionMode) {
                     Checkbox(
                         checked = isSelected,
                         onCheckedChange = { onSelectToggle() },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.Default.Folder,
                         contentDescription = "文件夹",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .rotate(270f)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
                 Column(
-                    modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         text = folder.name ?: "未知文件夹",
                         style = MaterialTheme.typography.titleSmall
                     )
-                    Text(
-                        text = folder.fullName ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-            }
-            if (isSelectionMode) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "打开",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .rotate(180f)
-                )
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = onDownload, enabled = !syncing) {
-                        Icon(Icons.Default.Download, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("下载")
+                    if (!folder.fullName.isNullOrEmpty()) {
+                        Text(
+                            text = folder.fullName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
                     }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "打开",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .rotate(180f)
-                    )
                 }
             }
         }
@@ -479,6 +472,13 @@ private fun CourseFileRow(
                         checked = isSelected,
                         onCheckedChange = { onSelectToggle() },
                         modifier = Modifier.size(22.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = getFileIcon(file),
+                        contentDescription = "文件",
+                        tint = getFileIconColor(file),
+                        modifier = Modifier.size(24.dp)
                     )
                 }
                 Text(
@@ -650,5 +650,53 @@ private fun formatRelativeTime(millis: Long): String {
         millis < 86400_000 -> "${millis / 3600_000}小时前"
         millis < 2592000_000 -> "${millis / 86400_000}天前"
         else -> "${millis / 2592000_000}个月前"
+    }
+}
+
+@Composable
+private fun getFileIcon(file: CanvasCourseFile): androidx.compose.ui.graphics.vector.ImageVector {
+    val fileName = file.displayName.lowercase()
+    val mimeType = file.contentType?.lowercase() ?: ""
+    
+    return when {
+        mimeType.startsWith("image/") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || 
+        fileName.endsWith(".png") || fileName.endsWith(".gif") || fileName.endsWith(".bmp") || 
+        fileName.endsWith(".webp") -> Icons.Default.Image
+        
+        mimeType.contains("pdf") || fileName.endsWith(".pdf") -> Icons.Default.PictureAsPdf
+        
+        mimeType.startsWith("video/") || fileName.endsWith(".mp4") || fileName.endsWith(".avi") || 
+        fileName.endsWith(".mkv") || fileName.endsWith(".mov") || fileName.endsWith(".wmv") -> Icons.Default.VideoFile
+        
+        mimeType.startsWith("audio/") || fileName.endsWith(".mp3") || fileName.endsWith(".wav") || 
+        fileName.endsWith(".flac") || fileName.endsWith(".aac") || fileName.endsWith(".m4a") -> Icons.Default.AudioFile
+        
+        mimeType.contains("document") || mimeType.contains("word") || mimeType.contains("text") ||
+        fileName.endsWith(".doc") || fileName.endsWith(".docx") || fileName.endsWith(".txt") || 
+        fileName.endsWith(".rtf") || fileName.endsWith(".odt") -> Icons.Default.Description
+        
+        else -> Icons.Default.InsertDriveFile
+    }
+}
+
+@Composable
+private fun getFileIconColor(file: CanvasCourseFile): androidx.compose.ui.graphics.Color {
+    val fileName = file.displayName.lowercase()
+    val mimeType = file.contentType?.lowercase() ?: ""
+    
+    return when {
+        mimeType.startsWith("image/") || fileName.matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$".toRegex()) -> 
+            MaterialTheme.colorScheme.tertiary
+        
+        mimeType.contains("pdf") || fileName.endsWith(".pdf") -> 
+            MaterialTheme.colorScheme.error
+        
+        mimeType.startsWith("video/") || fileName.matches(".*\\.(mp4|avi|mkv|mov|wmv)$".toRegex()) -> 
+            MaterialTheme.colorScheme.primary
+        
+        mimeType.startsWith("audio/") || fileName.matches(".*\\.(mp3|wav|flac|aac|m4a)$".toRegex()) -> 
+            MaterialTheme.colorScheme.secondary
+        
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
