@@ -1330,19 +1330,19 @@ private fun BoxScope.PlayerOverlayControls(
                 }
 
                 DropdownMenuItem(
-                    text = { Text("音量") },
                     onClick = {}
-                )
+                ) {
+                    Text("音量")
+                }
                 DropdownMenuItem(
-                    text = {
-                        Slider(
-                            value = volume.coerceIn(0f, 1f),
-                            onValueChange = { onVolumeChange(it) },
-                            valueRange = 0f..1f
-                        )
-                    },
                     onClick = {}
-                )
+                ) {
+                    Slider(
+                        value = volume.coerceIn(0f, 1f),
+                        onValueChange = { onVolumeChange(it) },
+                        valueRange = 0f..1f
+                    )
+                }
             }
         }
 
