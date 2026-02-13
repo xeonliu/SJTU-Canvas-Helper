@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import javax.inject.Inject
 
 sealed class CourseFilesUiState {
@@ -79,6 +82,11 @@ class CourseFilesViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : SelectableScreenViewModel() {
+
+    private data class FolderResolution(
+        val files: List<CanvasCourseFile>,
+        val skippedInvalidUrlCount: Int
+    )
 
     private val courseId: Long = savedStateHandle.get<String>("courseId")?.toLongOrNull() ?: 0L
 
@@ -196,7 +204,7 @@ class CourseFilesViewModel @Inject constructor(
                     _events.emit(CourseFilesEvent.Message("已下载: ${file.displayName}"))
                 }
                 .onFailure {
-                    _events.emit(CourseFilesEvent.Message(it.message ?: "下载失败: ${file.displayName}"))
+                    _events.emit(CourseFilesEvent.Message("${mapDownloadFailure(it)}: ${file.displayName}"))
                 }
         }
     }
@@ -206,36 +214,84 @@ class CourseFilesViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
             val tree = getRootTreeDocument() ?: return@launch
+            _events.emit(CourseFilesEvent.Message(executeDownloadBatch(files, state, tree)))
+        }
+    }
 
-            var successCount = 0
-            var failureCount = 0
-            val failedFiles = mutableListOf<String>()
+    fun downloadFolder(folder: CanvasFolder) {
+        viewModelScope.launch {
+            val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
+            val tree = getRootTreeDocument() ?: return@launch
 
-            files.forEach { file ->
-                downloadFileToStorage(file, state, tree)
-                    .onSuccess { successCount += 1 }
-                    .onFailure {
-                        failureCount += 1
-                        failedFiles.add(file.displayName)
-                    }
+            val resolution = resolveFolderFilesRecursive(folder.id, state)
+            if (resolution.files.isEmpty()) {
+                _events.emit(CourseFilesEvent.Message("文件夹内没有可下载文件：${folder.name ?: "未命名文件夹"}"))
+                return@launch
             }
 
-            val message = when {
-                failureCount == 0 -> "批量下载已启动：$successCount 个文件"
-                successCount == 0 -> {
-                    val details = failedFiles.take(3).joinToString(", ")
-                    if (failedFiles.size > 3) {
-                        "批量下载失败：无法启动任何下载。$details 等"
-                    } else {
-                        "批量下载失败：$details"
-                    }
-                }
-                else -> {
-                    val details = failedFiles.take(2).joinToString(", ")
-                    "批量下载已启动：$successCount 成功，$failureCount 失败。失败文件：$details"
+            val summary = executeDownloadBatch(resolution.files, state, tree)
+            val skippedSuffix = if (resolution.skippedInvalidUrlCount > 0) {
+                "（跳过${resolution.skippedInvalidUrlCount}个无效链接）"
+            } else {
+                ""
+            }
+            _events.emit(
+                CourseFilesEvent.Message(
+                    "文件夹下载：${folder.name ?: "未命名文件夹"}，共${resolution.files.size}个文件$skippedSuffix。$summary"
+                )
+            )
+        }
+    }
+
+    fun downloadSelectedEntities() {
+        viewModelScope.launch {
+            val state = _uiState.value as? CourseFilesUiState.Success ?: return@launch
+            val tree = getRootTreeDocument() ?: return@launch
+
+            val selectedKeys = selectedFileIds.value
+            if (selectedKeys.isEmpty()) {
+                _events.emit(CourseFilesEvent.Message("请先选择文件或文件夹"))
+                return@launch
+            }
+
+            val selectedFileIds = mutableSetOf<Long>()
+            val selectedFolderIds = mutableSetOf<Long>()
+            selectedKeys.forEach { key ->
+                when {
+                    key.startsWith("file:") -> key.removePrefix("file:").toLongOrNull()?.let { selectedFileIds.add(it) }
+                    key.startsWith("folder:") -> key.removePrefix("folder:").toLongOrNull()?.let { selectedFolderIds.add(it) }
+                    else -> key.toLongOrNull()?.let { selectedFileIds.add(it) }
                 }
             }
-            _events.emit(CourseFilesEvent.Message(message))
+
+            val explicitFiles = state.allFiles.filter { it.id in selectedFileIds }
+            val folderResolutions = selectedFolderIds.mapNotNull { folderId ->
+                state.foldersMap[folderId]?.let { folder -> folder to resolveFolderFilesRecursive(folderId, state) }
+            }
+
+            val folderFiles = folderResolutions.flatMap { it.second.files }
+            val uniqueFiles = (explicitFiles + folderFiles)
+                .associateBy { it.id }
+                .values
+                .toList()
+
+            if (uniqueFiles.isEmpty()) {
+                _events.emit(CourseFilesEvent.Message("所选项中没有可下载文件"))
+                return@launch
+            }
+
+            val emptyFolders = folderResolutions.filter { it.second.files.isEmpty() }
+            val skippedInvalid = folderResolutions.sumOf { it.second.skippedInvalidUrlCount }
+
+            val summary = executeDownloadBatch(uniqueFiles, state, tree)
+            val detailParts = mutableListOf<String>()
+            if (selectedFolderIds.isNotEmpty()) detailParts.add("文件夹${selectedFolderIds.size}个")
+            if (selectedFileIds.isNotEmpty()) detailParts.add("文件${selectedFileIds.size}个")
+            if (emptyFolders.isNotEmpty()) detailParts.add("空文件夹${emptyFolders.size}个")
+            if (skippedInvalid > 0) detailParts.add("跳过无效链接${skippedInvalid}个")
+            val detailText = if (detailParts.isEmpty()) "" else "（${detailParts.joinToString("，")}）"
+
+            _events.emit(CourseFilesEvent.Message("混合批量下载：解析到${uniqueFiles.size}个唯一文件$detailText。$summary"))
         }
     }
 
@@ -254,7 +310,7 @@ class CourseFilesViewModel @Inject constructor(
                         openFile(file)
                     }
                     .onFailure {
-                        _events.emit(CourseFilesEvent.Message(it.message ?: "下载失败: ${file.displayName}"))
+                        _events.emit(CourseFilesEvent.Message("${mapDownloadFailure(it)}: ${file.displayName}"))
                     }
                 return@launch
             }
@@ -290,7 +346,7 @@ class CourseFilesViewModel @Inject constructor(
                     }
                 }
                 .onFailure {
-                    _events.emit(CourseFilesEvent.Message(it.message ?: "下载失败: ${file.displayName}"))
+                    _events.emit(CourseFilesEvent.Message("${mapDownloadFailure(it)}: ${file.displayName}"))
                 }
         }
     }
@@ -366,10 +422,81 @@ class CourseFilesViewModel @Inject constructor(
                 }
             },
             onFailure = {
-                markProgressFailed(file.id, it.message ?: "下载失败")
+                markProgressFailed(file.id, mapDownloadFailure(it))
                 Result.failure(it)
             }
         )
+    }
+
+    private suspend fun executeDownloadBatch(
+        files: List<CanvasCourseFile>,
+        state: CourseFilesUiState.Success,
+        tree: DocumentFile
+    ): String {
+        var successCount = 0
+        var failureCount = 0
+        val failedFiles = mutableListOf<String>()
+
+        files.forEach { file ->
+            downloadFileToStorage(file, state, tree)
+                .onSuccess { successCount += 1 }
+                .onFailure {
+                    failureCount += 1
+                    failedFiles.add("${file.displayName}(${mapDownloadFailure(it)})")
+                }
+        }
+
+        return when {
+            failureCount == 0 -> "批量下载完成：$successCount 个文件"
+            successCount == 0 -> {
+                val details = failedFiles.take(3).joinToString(", ")
+                if (failedFiles.size > 3) {
+                    "批量下载失败：$details 等"
+                } else {
+                    "批量下载失败：$details"
+                }
+            }
+            else -> {
+                val details = failedFiles.take(2).joinToString(", ")
+                "批量下载完成：$successCount 成功，$failureCount 失败。失败文件：$details"
+            }
+        }
+    }
+
+    private fun resolveFolderFilesRecursive(
+        rootFolderId: Long,
+        state: CourseFilesUiState.Success
+    ): FolderResolution {
+        val childrenByParent = state.allFolders.groupBy { it.parentFolderId }
+        val folderIds = mutableSetOf<Long>()
+        val queue = ArrayDeque<Long>()
+        queue.add(rootFolderId)
+
+        while (queue.isNotEmpty()) {
+            val folderId = queue.removeFirst()
+            if (!folderIds.add(folderId)) continue
+            childrenByParent[folderId].orEmpty().forEach { child ->
+                queue.add(child.id)
+            }
+        }
+
+        val candidates = state.allFiles.filter { it.folderId != null && folderIds.contains(it.folderId) }
+        val validFiles = candidates.filter { !it.url.isNullOrBlank() }
+        return FolderResolution(
+            files = validFiles,
+            skippedInvalidUrlCount = candidates.size - validFiles.size
+        )
+    }
+
+    private fun mapDownloadFailure(error: Throwable): String {
+        return when (error) {
+            is IllegalArgumentException -> "无有效URL"
+            is UnknownHostException -> "网络不可用"
+            is SocketTimeoutException -> "下载超时"
+            is IOException -> "网络或存储错误"
+            is IllegalStateException -> error.message ?: "下载失败"
+            else -> error.message ?: "下载失败"
+        }
     }
 
     private fun markProgressQueued(fileId: Long, total: Long) {
