@@ -108,10 +108,17 @@ fun CanvasHelperApp() {
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .semantics {
-                                        selected = isSelected
+                                    .selectable(
+                                        selected = isSelected,
+                                        onClick = {
+                                            navController.navigate(item.route) {
+                                                popUpTo(Screen.Courses.route) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        },
                                         role = Role.Tab
-                                    }
+                                    )
                             ) {
                                 Column(
                                     horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
