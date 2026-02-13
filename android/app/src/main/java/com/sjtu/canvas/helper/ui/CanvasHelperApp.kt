@@ -1,15 +1,19 @@
 package com.sjtu.canvas.helper.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-//import androidx.compose.material3.windowsizeclass.*
+import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -26,7 +30,6 @@ data class NavigationItem(
     val label: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CanvasHelperApp() {
     val navController = rememberNavController()
@@ -52,12 +55,12 @@ fun CanvasHelperApp() {
     Scaffold(
         bottomBar = {
             if (!useNavigationRail) {
-                NavigationBar {
+                BottomNavigation {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
                     
                     navigationItems.forEach { item ->
-                        NavigationBarItem(
+                        BottomNavigationItem(
                             icon = { Icon(item.icon, contentDescription = item.label) },
                             label = { Text(item.label) },
                             selected = currentRoute == item.route,
@@ -80,26 +83,63 @@ fun CanvasHelperApp() {
                 .padding(paddingValues)
         ) {
             if (useNavigationRail) {
-                NavigationRail(
-                    modifier = Modifier.fillMaxHeight()
+                // Material 2 doesn't have NavigationRail, we'll use a vertical navigation instead
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(72.dp),
+                    elevation = 4.dp
                 ) {
-                    Spacer(Modifier.height(16.dp))
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
-                    val currentRoute = navBackStackEntry?.destination?.route
-                    
-                    navigationItems.forEach { item ->
-                        NavigationRailItem(
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
-                            selected = currentRoute == item.route,
-                            onClick = {
+                    Column(
+                        modifier = Modifier.fillMaxHeight()
+                    ) {
+                        Spacer(Modifier.height(16.dp))
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                        val currentRoute = navBackStackEntry?.destination?.route
+                        
+                        navigationItems.forEach { item ->
+                            val isSelected = currentRoute == item.route
+                            val navigateToItem = {
                                 navController.navigate(item.route) {
                                     popUpTo(Screen.Courses.route) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             }
-                        )
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = isSelected,
+                                        onClick = navigateToItem,
+                                        role = Role.Tab
+                                    )
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        item.icon, 
+                                        contentDescription = item.label,
+                                        tint = if (isSelected) 
+                                            MaterialTheme.colors.primary 
+                                        else 
+                                            MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    Text(
+                                        text = item.label,
+                                        style = MaterialTheme.typography.caption,
+                                        color = if (isSelected) 
+                                            MaterialTheme.colors.primary 
+                                        else 
+                                            MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

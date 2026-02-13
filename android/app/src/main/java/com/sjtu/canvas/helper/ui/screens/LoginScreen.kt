@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,7 +17,6 @@ import com.sjtu.canvas.helper.R
 import com.sjtu.canvas.helper.ui.viewmodel.LoginUiState
 import com.sjtu.canvas.helper.ui.viewmodel.LoginViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
@@ -43,10 +42,8 @@ fun LoginScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.login_title)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                backgroundColor = MaterialTheme.colors.primary,
+                contentColor = MaterialTheme.colors.onPrimary
             )
         }
     ) { paddingValues ->
@@ -62,7 +59,7 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = 4.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -71,8 +68,8 @@ fun LoginScreen(
                 ) {
                     Text(
                         text = "SJTU Canvas Helper",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        style = MaterialTheme.typography.h5,
+                        color = MaterialTheme.colors.primary
                     )
                     
                     Spacer(modifier = Modifier.height(32.dp))
@@ -108,8 +105,8 @@ fun LoginScreen(
                     if (uiState is LoginUiState.Error) {
                         Text(
                             text = (uiState as LoginUiState.Error).message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colors.error,
+                            style = MaterialTheme.typography.body2,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -125,7 +122,7 @@ fun LoginScreen(
                         if (isLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = MaterialTheme.colors.onPrimary
                             )
                         } else {
                             Text(stringResource(R.string.login_button))
