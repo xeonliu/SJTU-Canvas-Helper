@@ -115,10 +115,10 @@ fun CanvasHelperApp() {
                                         role = Role.Tab
                                     )
                                     .padding(vertical = 12.dp),
-                                contentAlignment = androidx.compose.ui.Alignment.Center
+                                contentAlignment = Alignment.Center
                             ) {
                                 Column(
-                                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
                                         item.icon, 
