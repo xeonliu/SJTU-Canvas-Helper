@@ -1597,7 +1597,6 @@ private fun BoxScope.PlayerOverlayControls(
                 }
             }
 
-
         }
 
         Box {
