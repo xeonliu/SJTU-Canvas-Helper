@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,6 +20,13 @@ class SettingsViewModel @Inject constructor(
 
     private val _courseFilesTreeUri = MutableStateFlow<String?>(null)
     val courseFilesTreeUri: StateFlow<String?> = _courseFilesTreeUri.asStateFlow()
+
+    val themeMode: StateFlow<String> = userPreferences.themeMode
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = "system"
+        )
 
     init {
         viewModelScope.launch {
@@ -43,6 +51,12 @@ class SettingsViewModel @Inject constructor(
     fun saveCanvasToken(token: String) {
         viewModelScope.launch {
             userPreferences.saveCanvasToken(token)
+        }
+    }
+
+    fun saveThemeMode(mode: String) {
+        viewModelScope.launch {
+            userPreferences.saveThemeMode(mode)
         }
     }
 }

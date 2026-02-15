@@ -1,6 +1,7 @@
 package com.sjtu.canvas.helper.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,27 +18,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-//import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -53,9 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -67,26 +70,25 @@ import com.sjtu.canvas.helper.R
 import com.sjtu.canvas.helper.data.model.CanvasCourseFile
 import com.sjtu.canvas.helper.data.model.CanvasFolder
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesEvent
+import com.sjtu.canvas.helper.ui.viewmodel.DownloadStatus
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesUiState
 import com.sjtu.canvas.helper.ui.viewmodel.CourseFilesViewModel
+import com.sjtu.canvas.helper.ui.components.ContextualActionBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseFilesScreen(
     courseId: Long,
-    onNavigateBack: () -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: CourseFilesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val currentFolderId by viewModel.currentFolderId.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val progressMap by viewModel.downloadProgress.collectAsState()
+    val selectedFileIds by viewModel.selectedFileIds.collectAsState()
+    val isSelectionMode = selectedFileIds.isNotEmpty()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    
-    // 多选状态
-    var selectedFileIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var selectedFolderIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -98,35 +100,47 @@ fun CourseFilesScreen(
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                    runCatching { context.startActivity(intent) }
-                        .onFailure { snackbarHostState.showSnackbar("没有可用应用打开该文件") }
+                    runCatching { context.startActivity(intent) }.onFailure {
+                            snackbarHostState.showSnackbar(
+                                "没有可用应用打开该文件"
+                            )
+                        }
                 }
             }
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.files_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = null)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = null)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
+    // 处理文件夹导航返回
+    val canGoBack = when (val state = uiState) {
+        is CourseFilesUiState.Success -> 
+            state.currentFolderId != null && state.foldersMap[state.currentFolderId]?.parentFolderId != null
+        else -> false
+    }
+    
+    BackHandler(enabled = !isSelectionMode && canGoBack) {
+        viewModel.navigateBack()
+    }
+
+    BackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text(stringResource(R.string.files_title)) }, navigationIcon = {
+            IconButton(onClick = { onNavigateBack?.invoke() }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null)
+            }
+        }, actions = {
+            IconButton(onClick = { viewModel.refresh() }) {
+                Icon(Icons.Default.Refresh, contentDescription = null)
+            }
+        }, colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        )
+    }, snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
         when (val state = uiState) {
             is CourseFilesUiState.Loading -> {
                 Box(
@@ -162,22 +176,20 @@ fun CourseFilesScreen(
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
-                    // 面包屑导航栏
+                    // 面包屑导航栏与同步按钮
                     BreadcrumbNavigation(
                         folderPath = state.currentFolderPath,
                         onFolderClick = { folder ->
-                            // 进入新文件夹时清空选择
-                            selectedFileIds = emptySet()
-                            selectedFolderIds = emptySet()
+                            viewModel.clearSelection()
                             viewModel.navigateToFolder(folder.id)
                         },
                         onBackClick = {
-                            selectedFileIds = emptySet()
-                            selectedFolderIds = emptySet()
+                            viewModel.clearSelection()
                             viewModel.navigateBack()
                         },
-                        canGoBack = state.currentFolderId != null && 
-                                   state.foldersMap[state.currentFolderId]?.parentFolderId != null
+                        canGoBack = state.currentFolderId != null && state.foldersMap[state.currentFolderId]?.parentFolderId != null,
+                        isSyncing = isSyncing,
+                        onSyncClick = { viewModel.syncAll() }
                     )
 
                     // 内容区域
@@ -185,84 +197,73 @@ fun CourseFilesScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .weight(1f),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(0.dp)
                     ) {
-                        item {
-                            Button(
-                                onClick = { viewModel.syncAll() },
-                                enabled = !isSyncing
-                            ) {
-                                Icon(Icons.Default.Sync, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (isSyncing) "同步中" else "一键同步")
-                            }
-                        }
-
                         // 显示子文件夹
                         if (state.childFolders.isNotEmpty()) {
                             items(state.childFolders) { folder ->
+                                val folderSelectionKey = "folder:${folder.id}"
                                 FolderItem(
                                     folder = folder,
-                                    isSelected = folder.id in selectedFolderIds,
-                                    onClick = { 
-                                        selectedFileIds = emptySet()
-                                        selectedFolderIds = emptySet()
-                                        viewModel.navigateToFolder(folder.id) 
-                                    },
-                                    onLongClick = {
-                                        if (folder.id in selectedFolderIds) {
-                                            selectedFolderIds = selectedFolderIds - folder.id
+                                    isSelected = folderSelectionKey in selectedFileIds,
+                                    isSelectionMode = isSelectionMode,
+                                    syncing = isSyncing,
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            viewModel.toggleFileSelection(folderSelectionKey)
                                         } else {
-                                            selectedFolderIds = selectedFolderIds + folder.id
+                                            viewModel.clearSelection()
+                                            viewModel.navigateToFolder(folder.id)
                                         }
-                                    }
-                                )
+                                    },
+                                    onLongClick = { viewModel.selectFile(folderSelectionKey) },
+                                    onSelectToggle = {
+                                        viewModel.toggleFileSelection(
+                                            folderSelectionKey
+                                        )
+                                    },
+                                    onDownload = { viewModel.downloadFolder(folder) })
                             }
                         }
 
                         // 显示当前文件夹的文件
                         if (state.currentFiles.isEmpty() && state.childFolders.isEmpty()) {
                             item {
-                                Text("暂无文件或文件夹")
+                                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("暂无文件或文件夹", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         } else {
                             items(state.currentFiles) { file ->
+                                val fileSelectionKey = "file:${file.id}"
                                 CourseFileRow(
                                     file = file,
-                                    isSelected = file.id in selectedFileIds,
+                                    isSelected = fileSelectionKey in selectedFileIds || file.id.toString() in selectedFileIds,
+                                    isSelectionMode = isSelectionMode,
                                     syncing = isSyncing,
                                     progress = progressMap[file.id],
+                                    onSelectToggle = {
+                                        viewModel.toggleFileSelection(fileSelectionKey)
+                                    },
                                     onDownload = { viewModel.downloadSingle(file) },
                                     onOpen = { viewModel.openFile(file) },
                                     onLongClick = {
-                                        if (file.id in selectedFileIds) {
-                                            selectedFileIds = selectedFileIds - file.id
-                                        } else {
-                                            selectedFileIds = selectedFileIds + file.id
-                                        }
-                                    }
-                                )
+                                        viewModel.selectFile(fileSelectionKey)
+                                    })
                             }
                         }
                     }
 
-                    // 批量操作栏
-                    if (selectedFileIds.isNotEmpty()) {
-                        BatchActionBar(
-                            selectedCount = selectedFileIds.size,
-                            onDownloadClick = {
-                                val filesToDownload = state.currentFiles.filter { it.id in selectedFileIds }
-                                viewModel.downloadMultiple(filesToDownload)
-                                selectedFileIds = emptySet()
-                                selectedFolderIds = emptySet()
-                            },
-                            onClearClick = {
-                                selectedFileIds = emptySet()
-                                selectedFolderIds = emptySet()
-                            }
-                        )
-                    }
+                    // Contextual Action Bar for multi-select file operations
+                    ContextualActionBar(
+                        isVisible = selectedFileIds.isNotEmpty(),
+                        selectedCount = selectedFileIds.size,
+                        onDownloadClick = {
+                            viewModel.downloadSelectedEntities()
+                        },
+                        onCloseClick = {
+                            viewModel.clearSelection()
+                        })
                 }
             }
         }
@@ -274,69 +275,82 @@ private fun BreadcrumbNavigation(
     folderPath: List<CanvasFolder>,
     onFolderClick: (CanvasFolder) -> Unit,
     onBackClick: () -> Unit,
-    canGoBack: Boolean
+    canGoBack: Boolean,
+    isSyncing: Boolean,
+    onSyncClick: () -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        if (canGoBack) {
+            IconButton(
+                onClick = onBackClick, modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回上级目录",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
+        // 路径区域 - 可水平滚动
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            if (canGoBack) {
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回上级目录",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
             Text(
-                text = "当前路径：",
+                text = "路径:",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        
-        // 面包屑路径显示
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(0.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+
             folderPath.forEachIndexed { index, folder ->
-                FilledTonalButton(
-                    onClick = { onFolderClick(folder) },
-                    modifier = Modifier.height(32.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                ) {
-                    Text(
-                        text = folder.name ?: "未知",
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
+                Text(
+                    text = folder.name ?: "未知",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { onFolderClick(folder) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
+                )
                 if (index < folderPath.size - 1) {
                     Text(
                         text = "/",
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 4.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 一键同步按钮
+        FilledTonalButton(
+            onClick = onSyncClick,
+            enabled = !isSyncing,
+            modifier = Modifier.height(32.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Sync,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = if (isSyncing) "同步中" else "一键同步",
+                style = MaterialTheme.typography.labelSmall
+            )
         }
     }
 }
@@ -346,77 +360,70 @@ private fun BreadcrumbNavigation(
 private fun FolderItem(
     folder: CanvasFolder,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
+    syncing: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onSelectToggle: () -> Unit,
+    onDownload: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = if (isSelected) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                else MaterialTheme.colorScheme.surface
             )
-        } else {
-            CardDefaults.cardColors()
-        }
+            .combinedClickable(
+                onClick = onClick, onLongClick = onLongClick
+            )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isSelected) {
+                if (isSelectionMode) {
                     Checkbox(
-                        checked = true,
-                        onCheckedChange = null,
-                        modifier = Modifier.size(24.dp)
+                        checked = isSelected,
+                        onCheckedChange = { onSelectToggle() },
+                        modifier = Modifier.size(22.dp)
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.Default.Folder,
                         contentDescription = "文件夹",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .rotate(270f)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         text = folder.name ?: "未知文件夹",
                         style = MaterialTheme.typography.titleSmall
                     )
-                    Text(
-                        text = folder.fullName ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
+                    if (!folder.fullName.isNullOrEmpty()) {
+                        Text(
+                            text = folder.fullName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "打开",
-                modifier = Modifier
-                    .size(24.dp)
-                    .rotate(180f)
-            )
         }
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.outlineVariant
+        )
     }
 }
 
@@ -425,47 +432,54 @@ private fun FolderItem(
 private fun CourseFileRow(
     file: CanvasCourseFile,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     syncing: Boolean,
     progress: com.sjtu.canvas.helper.ui.viewmodel.DownloadProgress?,
+    onSelectToggle: () -> Unit,
     onDownload: () -> Unit,
     onOpen: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = {},
-                onLongClick = onLongClick
-            ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = if (isSelected) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                else MaterialTheme.colorScheme.surface
             )
-        } else {
-            CardDefaults.cardColors()
-        }
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        onSelectToggle()
+                    } else {
+                        onOpen()
+                    }
+                }, onLongClick = onLongClick
+            )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isSelected) {
+                if (isSelectionMode) {
                     Checkbox(
-                        checked = true,
-                        onCheckedChange = null,
-                        modifier = Modifier.size(24.dp)
+                        checked = isSelected,
+                        onCheckedChange = { onSelectToggle() },
+                        modifier = Modifier.size(22.dp)
                     )
                 } else {
-                    Spacer(modifier = Modifier.width(36.dp))
+                    Icon(
+                        imageVector = getFileIcon(file),
+                        contentDescription = "文件",
+                        tint = getFileIconColor(file),
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 Text(
                     file.displayName,
@@ -474,54 +488,103 @@ private fun CourseFileRow(
                 )
             }
             if (progress != null) {
-                LinearProgressIndicator(
-                    progress = { if (progress.finished) 1f else progress.ratio },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (progress.status == DownloadStatus.QUEUED) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                } else if (progress.status == DownloadStatus.DOWNLOADING || progress.status == DownloadStatus.COMPLETED) {
+                    LinearProgressIndicator(
+                        progress = { if (progress.finished) 1f else progress.ratio },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Text(
-                    text = if (progress.finished) {
-                        "下载完成"
-                    } else if (progress.total > 0) {
-                        "下载中：${formatSize(progress.processed)} / ${formatSize(progress.total)}"
-                    } else {
-                        "下载中：${formatSize(progress.processed)}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    text = when (progress.status) {
+                        DownloadStatus.QUEUED -> "排队中"
+                        DownloadStatus.DOWNLOADING -> {
+                            if (progress.total > 0) {
+                                "下载中：${formatSize(progress.processed)} / ${formatSize(progress.total)}"
+                            } else {
+                                "下载中：${formatSize(progress.processed)}"
+                            }
+                        }
+
+                        DownloadStatus.COMPLETED -> "下载完成"
+                        DownloadStatus.FAILED -> "下载失败：${progress.message ?: "未知错误"}"
+                    }, style = MaterialTheme.typography.bodySmall, color = when (progress.status) {
+                        DownloadStatus.FAILED -> MaterialTheme.colorScheme.error
+                        DownloadStatus.COMPLETED -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = file.size?.let { formatSize(it) } ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = onDownload, enabled = !syncing) {
-                        Icon(Icons.Default.Download, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("下载")
-                    }
-                    Button(onClick = onOpen) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("打开")
-                    }
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatDateTime(file.updatedAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "·",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = file.size?.let { formatSize(it) } ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+                DownloadProgressIconButton(
+                    syncing = syncing, progress = progress, onDownload = onDownload
+                )
             }
+        }
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.outlineVariant
+        )
+    }
+}
+
+@Composable
+private fun DownloadProgressIconButton(
+    syncing: Boolean,
+    progress: com.sjtu.canvas.helper.ui.viewmodel.DownloadProgress?,
+    onDownload: () -> Unit
+) {
+    Box(
+        modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center
+    ) {
+        // 仅在下载中显示进度圆环，去掉静态背景圆
+        if (progress != null && progress.status == DownloadStatus.DOWNLOADING) {
+            CircularProgressIndicator(
+                progress = { progress.ratio.coerceIn(0f, 1f) },
+                modifier = Modifier.size(28.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        IconButton(onClick = onDownload, enabled = !syncing, modifier = Modifier.size(30.dp)) {
+            val isCompleted = progress?.status == DownloadStatus.COMPLETED
+            Icon(
+                imageVector = if (isCompleted) Icons.Default.Done else Icons.Default.Download,
+                contentDescription = if (isCompleted) "已下载" else "下载",
+                tint = if (isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
 private fun BatchActionBar(
-    selectedCount: Int,
-    onDownloadClick: () -> Unit,
-    onClearClick: () -> Unit
+    selectedCount: Int, onDownloadClick: () -> Unit, onClearClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -565,4 +628,64 @@ private fun formatSize(bytes: Long): String {
     if (mb < 1024) return String.format("%.1fMB", mb)
     val gb = mb / 1024.0
     return String.format("%.2fGB", gb)
+}
+
+private fun formatDateTime(isoString: String?): String {
+    if (isoString == null) return ""
+    return try {
+        val instant = java.time.Instant.parse(isoString)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(java.time.ZoneId.systemDefault())
+        formatter.format(instant)
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+@Composable
+private fun getFileIcon(file: CanvasCourseFile): androidx.compose.ui.graphics.vector.ImageVector {
+    val fileName = file.displayName.lowercase()
+    val mimeType = file.contentType?.lowercase() ?: ""
+    
+    return when {
+        mimeType.startsWith("image/") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || 
+        fileName.endsWith(".png") || fileName.endsWith(".gif") || fileName.endsWith(".bmp") || 
+        fileName.endsWith(".webp") -> Icons.Default.Image
+        
+        mimeType.contains("pdf") || fileName.endsWith(".pdf") -> Icons.Default.PictureAsPdf
+        
+        mimeType.startsWith("video/") || fileName.endsWith(".mp4") || fileName.endsWith(".avi") || 
+        fileName.endsWith(".mkv") || fileName.endsWith(".mov") || fileName.endsWith(".wmv") -> Icons.Default.VideoFile
+        
+        mimeType.startsWith("audio/") || fileName.endsWith(".mp3") || fileName.endsWith(".wav") || 
+        fileName.endsWith(".flac") || fileName.endsWith(".aac") || fileName.endsWith(".m4a") -> Icons.Default.AudioFile
+        
+        mimeType.contains("document") || mimeType.contains("word") || mimeType.contains("text") ||
+        fileName.endsWith(".doc") || fileName.endsWith(".docx") || fileName.endsWith(".txt") || 
+        fileName.endsWith(".rtf") || fileName.endsWith(".odt") -> Icons.Default.Description
+        
+        else -> Icons.Default.InsertDriveFile
+    }
+}
+
+@Composable
+private fun getFileIconColor(file: CanvasCourseFile): androidx.compose.ui.graphics.Color {
+    val fileName = file.displayName.lowercase()
+    val mimeType = file.contentType?.lowercase() ?: ""
+    
+    return when {
+        mimeType.startsWith("image/") || fileName.matches(".*\\.(jpg|jpeg|png|gif|bmp|webp)$".toRegex()) -> 
+            MaterialTheme.colorScheme.tertiary
+        
+        mimeType.contains("pdf") || fileName.endsWith(".pdf") -> 
+            MaterialTheme.colorScheme.error
+        
+        mimeType.startsWith("video/") || fileName.matches(".*\\.(mp4|avi|mkv|mov|wmv)$".toRegex()) -> 
+            MaterialTheme.colorScheme.primary
+        
+        mimeType.startsWith("audio/") || fileName.matches(".*\\.(mp3|wav|flac|aac|m4a)$".toRegex()) -> 
+            MaterialTheme.colorScheme.secondary
+        
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 }

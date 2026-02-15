@@ -22,7 +22,7 @@ sealed class VideosUiState {
 class VideosViewModel @Inject constructor(
     private val repository: CanvasRepository,
     savedStateHandle: SavedStateHandle
-) : ViewModel() {
+) : SelectableScreenViewModel() {
 
     private val courseId: Long = savedStateHandle.get<String>("courseId")?.toLongOrNull() ?: 0L
 
