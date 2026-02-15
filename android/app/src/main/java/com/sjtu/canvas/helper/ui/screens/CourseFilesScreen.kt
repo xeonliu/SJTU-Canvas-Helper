@@ -642,17 +642,6 @@ private fun formatDateTime(isoString: String?): String {
     }
 }
 
-private fun formatRelativeTime(millis: Long): String {
-    return when {
-        millis < 0 -> ""
-        millis < 60_000 -> "刚刚"
-        millis < 3600_000 -> "${millis / 60_000}分钟前"
-        millis < 86400_000 -> "${millis / 3600_000}小时前"
-        millis < 2592000_000 -> "${millis / 86400_000}天前"
-        else -> "${millis / 2592000_000}个月前"
-    }
-}
-
 @Composable
 private fun getFileIcon(file: CanvasCourseFile): androidx.compose.ui.graphics.vector.ImageVector {
     val fileName = file.displayName.lowercase()
