@@ -284,56 +284,58 @@ fun VideosScreen(
                     }
 
                     if (primaryPlay != null) {
-                        PlayerArea(
-                            primaryUrl = primaryPlay!!.rtmpUrlHdv,
-                            secondaryUrl = if (dualMode) secondaryPlay?.rtmpUrlHdv else null,
-                            subtitlePath = subtitlePath,
-                            subtitleEnabled = subtitleEnabled,
-                            speed = speed,
-                            primaryMuted = primaryMuted,
-                            secondaryMuted = secondaryMuted,
-                            primaryVolume = primaryVolume,
-                            secondaryVolume = secondaryVolume,
-                            position = currentPosition,
-                            isPlaying = isPlaying,
-                            fullscreen = fullscreen,
-                            expanded = immersivePlayerMode,
-                            dualMode = dualMode,
-                            onToggleFullscreen = { fullscreen = !fullscreen },
-                            onOpenSelector = { selectorDialogOpen = true },
-                            onDualModeChange = { dualMode = it },
-                            onSwap = {
-                                videosViewModel.swapPrimarySecondary()
-                                val tmpMuted = primaryMuted
-                                primaryMuted = secondaryMuted
-                                secondaryMuted = tmpMuted
-                                val tmpVol = primaryVolume
-                                primaryVolume = secondaryVolume
-                                secondaryVolume = tmpVol
-                                // 交换时不再交换播放位置，因为两者应该同步
-                            },
-                            onPrimaryMuteChange = { primaryMuted = it },
-                            onSecondaryMuteChange = { secondaryMuted = it },
-                            onPrimaryVolumeChange = { primaryVolume = it },
-                            onSecondaryVolumeChange = { secondaryVolume = it },
-                            onSpeedChange = { speed = it },
-                            onSubtitleEnabledChange = { subtitleEnabled = it },
-                            onPositionChange = { currentPosition = it },
-                            onPlayingChange = { isPlaying = it },
-                            transcriptSeekPositionMs = transcriptSeekPositionMs,
-                        )
-
-                        if (showTranscriptPanel && transcriptLines.isNotEmpty()) {
-                            TranscriptPanel(
-                                lines = transcriptLines,
-                                activeIndex = activeTranscriptIndex,
-                                onLineClick = { line ->
-                                    transcriptSeekPositionMs = line.startMs
-                                }
+                        if (!fullscreen) {
+                            PlayerArea(
+                                primaryUrl = primaryPlay!!.rtmpUrlHdv,
+                                secondaryUrl = if (dualMode) secondaryPlay?.rtmpUrlHdv else null,
+                                subtitlePath = subtitlePath,
+                                subtitleEnabled = subtitleEnabled,
+                                speed = speed,
+                                primaryMuted = primaryMuted,
+                                secondaryMuted = secondaryMuted,
+                                primaryVolume = primaryVolume,
+                                secondaryVolume = secondaryVolume,
+                                position = currentPosition,
+                                isPlaying = isPlaying,
+                                fullscreen = fullscreen,
+                                expanded = immersivePlayerMode,
+                                dualMode = dualMode,
+                                onToggleFullscreen = { fullscreen = !fullscreen },
+                                onOpenSelector = { selectorDialogOpen = true },
+                                onDualModeChange = { dualMode = it },
+                                onSwap = {
+                                    videosViewModel.swapPrimarySecondary()
+                                    val tmpMuted = primaryMuted
+                                    primaryMuted = secondaryMuted
+                                    secondaryMuted = tmpMuted
+                                    val tmpVol = primaryVolume
+                                    primaryVolume = secondaryVolume
+                                    secondaryVolume = tmpVol
+                                    // 交换时不再交换播放位置，因为两者应该同步
+                                },
+                                onPrimaryMuteChange = { primaryMuted = it },
+                                onSecondaryMuteChange = { secondaryMuted = it },
+                                onPrimaryVolumeChange = { primaryVolume = it },
+                                onSecondaryVolumeChange = { secondaryVolume = it },
+                                onSpeedChange = { speed = it },
+                                onSubtitleEnabledChange = { subtitleEnabled = it },
+                                onPositionChange = { currentPosition = it },
+                                onPlayingChange = { isPlaying = it },
+                                transcriptSeekPositionMs = transcriptSeekPositionMs,
                             )
-                        }
 
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            if (showTranscriptPanel && transcriptLines.isNotEmpty()) {
+                                TranscriptPanel(
+                                    lines = transcriptLines,
+                                    activeIndex = activeTranscriptIndex,
+                                    onLineClick = { line ->
+                                        transcriptSeekPositionMs = line.startMs
+                                    }
+                                )
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        }
                     }
 
                     if (primaryPlay == null) {
@@ -396,6 +398,41 @@ fun VideosScreen(
                 }
             }
         }
+    }
+    
+    if (fullscreen && primaryPlay != null) {
+        FullscreenPlayerDialog(
+            primaryUrl = primaryPlay!!.rtmpUrlHdv,
+            secondaryUrl = if (dualMode) secondaryPlay?.rtmpUrlHdv else null,
+            subtitlePath = subtitlePath,
+            subtitleEnabled = subtitleEnabled,
+            speed = speed,
+            primaryMuted = primaryMuted,
+            secondaryMuted = secondaryMuted,
+            primaryVolume = primaryVolume,
+            secondaryVolume = secondaryVolume,
+            position = currentPosition,
+            isPlaying = isPlaying,
+            onDismiss = { fullscreen = false },
+            onSwap = {
+                videosViewModel.swapPrimarySecondary()
+                val tmpMuted = primaryMuted
+                primaryMuted = secondaryMuted
+                secondaryMuted = tmpMuted
+                val tmpVol = primaryVolume
+                primaryVolume = secondaryVolume
+                secondaryVolume = tmpVol
+            },
+            onPrimaryMuteChange = { primaryMuted = it },
+            onSecondaryMuteChange = { secondaryMuted = it },
+            onPrimaryVolumeChange = { primaryVolume = it },
+            onSecondaryVolumeChange = { secondaryVolume = it },
+            onSpeedChange = { speed = it },
+            onSubtitleEnabledChange = { subtitleEnabled = it },
+            onPositionChange = { currentPosition = it },
+            onPlayingChange = { isPlaying = it },
+            onDualModeChange = { dualMode = it },
+        )
     }
 }
 
@@ -808,6 +845,7 @@ private fun FullscreenPlayerDialog(
     onSubtitleEnabledChange: (Boolean) -> Unit,
     onPositionChange: (Long) -> Unit,
     onPlayingChange: (Boolean) -> Unit,
+    onDualModeChange: (Boolean) -> Unit,
 ) {
     var secondaryOffsetX by remember { mutableFloatStateOf(0f) }
     var secondaryOffsetY by remember { mutableFloatStateOf(0f) }
@@ -815,35 +853,32 @@ private fun FullscreenPlayerDialog(
     val context = LocalContext.current
     val activity = context as? Activity
 
-    // 进入全屏时设置横屏和隐藏系统UI
+    // 进入全屏时设置横屏和隐藏系统UI（基于 WindowInsetsCompat）
     DisposableEffect(Unit) {
         val originalOrientation = activity?.requestedOrientation
         val window = activity?.window
-        val decorView = window?.decorView
 
-        // 设置横屏
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
-        // 隐藏系统UI实现真正的全屏
-        decorView?.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        )
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
 
         onDispose {
-            // 恢复原来的屏幕方向
             if (originalOrientation != null) {
                 activity?.requestedOrientation = originalOrientation
             } else {
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
 
-            // 恢复系统UI
-            decorView?.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            if (window != null) {
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
         }
     }
 
@@ -872,6 +907,7 @@ private fun FullscreenPlayerDialog(
                 onSwap = if (secondaryUrl != null) onSwap else null,
                 onFullscreen = onDismiss,
                 dualMode = secondaryUrl != null,
+                onDualModeChange = onDualModeChange,
                 fullscreen = true,
             )
 
@@ -1109,6 +1145,10 @@ private fun SjtuVideoPlayerSurface(
                 val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
                 val touchSlop = ViewConfiguration.get(ctx).scaledTouchSlop.toFloat()
                 PlayerView(ctx).apply {
+                    resizeMode = if (fullscreen)
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    else
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                     // 紧凑模式（副屏）不展示自带控制栏，避免遮挡画面
                     useController = !compact
                     this.player = player
@@ -1119,6 +1159,7 @@ private fun SjtuVideoPlayerSurface(
                     var basePositionMs = 0L
                     val longPressRunnable = Runnable {
                         if (dragStarted) return@Runnable
+                        if (roleLabel != "主" || compact) return@Runnable
                         longPressTriggered = true
                         holdSpeedBoost = true
                     }
@@ -1135,7 +1176,9 @@ private fun SjtuVideoPlayerSurface(
                                 dragSeekDeltaMs = 0L
                                 draggingSeek = false
                                 removeCallbacks(longPressRunnable)
-                                postDelayed(longPressRunnable, longPressTimeout)
+                                if (roleLabel == "主" && !compact) {
+                                    postDelayed(longPressRunnable, longPressTimeout)
+                                }
                             }
 
                             MotionEvent.ACTION_MOVE -> {
