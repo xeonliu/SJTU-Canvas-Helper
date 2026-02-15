@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -173,6 +174,11 @@ fun VideosScreen(
         }
     }
 
+    // 默认先尝试加载回放；若因未登录/权限失败，再提示登录
+    LaunchedEffect(Unit) {
+        videosViewModel.loadVideos()
+    }
+
     LaunchedEffect(loginState) {
         if (loginState is VideoLoginState.LoggedIn) {
             videosViewModel.loadVideos()
@@ -222,7 +228,6 @@ fun VideosScreen(
                 .padding(if (immersivePlayerMode) PaddingValues(0.dp) else paddingValues)
         ) {
             when (loginState) {
-                is VideoLoginState.Idle,
                 is VideoLoginState.ShowQr,
                 is VideoLoginState.Loading,
                 is VideoLoginState.Error -> {
@@ -233,8 +238,7 @@ fun VideosScreen(
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 }
-
-                VideoLoginState.LoggedIn -> Unit
+                else -> Unit
             }
 
             when (val state = uiState) {
@@ -245,10 +249,28 @@ fun VideosScreen(
                 }
 
                 is SjtuVideosUiState.Error -> {
-                    ErrorPanel(
-                        message = state.message,
-                        onRetry = { videosViewModel.loadVideos() }
-                    )
+                    val msg = state.message
+                    val loginRelated = listOf("未登录", "登录", "jaccount", "权限", "授权").any { kw ->
+                        msg.contains(kw, ignoreCase = true)
+                    }
+                    if (loginRelated) {
+                        VideoLoginPanel(
+                            state = when (loginState) {
+                                is VideoLoginState.ShowQr,
+                                is VideoLoginState.Loading,
+                                is VideoLoginState.Error -> loginState
+                                else -> VideoLoginState.Idle
+                            },
+                            onStart = { loginViewModel.startQrLogin() },
+                            onCancel = { loginViewModel.cancel() }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    } else {
+                        ErrorPanel(
+                            message = state.message,
+                            onRetry = { videosViewModel.loadVideos() }
+                        )
+                    }
                 }
 
                 is SjtuVideosUiState.Success -> {
@@ -958,7 +980,6 @@ private fun SjtuVideoPlayerSurface(
                     )
                         .setMimeType(MimeTypes.TEXT_VTT)
                         .setLanguage("zh")
-                        .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT)
                         .setRoleFlags(androidx.media3.common.C.ROLE_FLAG_SUBTITLE)
                         .setLabel("字幕")
                         .build()
@@ -973,6 +994,11 @@ private fun SjtuVideoPlayerSurface(
             .setMediaSourceFactory(mediaSourceFactory)
             .build().apply {
                 setMediaItem(mediaItem)
+                trackSelectionParameters = trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, !subtitleEnabled)
+                    .setPreferredTextLanguage(if (subtitleEnabled) "zh" else null)
+                    .build()
                 // 如果这是因为切换（url改变）导致重建，且有传入位置，则恢复位置
                 if (position > 0) {
                     seekTo(position)
@@ -1504,7 +1530,7 @@ private fun BoxScope.PlayerOverlayControls(
 
         Box {
             IconButton(onClick = { speedOpen = true }, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.Dashboard, contentDescription = null)
+                Icon(Icons.Default.Speed, contentDescription = null)
             }
 
             DropdownMenu(expanded = speedOpen, onDismissRequest = { speedOpen = false }) {
@@ -1533,7 +1559,7 @@ private fun BoxScope.PlayerOverlayControls(
 
         Box {
             IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.Dashboard, contentDescription = null)
+                Icon(Icons.Default.Settings, contentDescription = null)
             }
             DropdownMenu(expanded = settingsOpen, onDismissRequest = { settingsOpen = false }) {
                 if (onOpenSelector != null) {
