@@ -166,7 +166,7 @@ fun VideosScreen(
         }
     }
 
-    // 竖屏非全屏时强制关闭视频内嵌字幕，仅通过 Transcript 面板展示
+    // // 竖屏非全屏时强制关闭视频内嵌字幕，仅通过 Transcript 面板展示
     LaunchedEffect(showTranscriptPanel) {
         if (showTranscriptPanel && subtitleEnabled) {
             subtitleEnabled = false
@@ -266,7 +266,7 @@ fun VideosScreen(
                             primaryUrl = primaryPlay!!.rtmpUrlHdv,
                             secondaryUrl = if (dualMode) secondaryPlay?.rtmpUrlHdv else null,
                             subtitlePath = subtitlePath,
-                            subtitleEnabled = subtitleEnabled && !showTranscriptPanel,
+                            subtitleEnabled = subtitleEnabled,
                             speed = speed,
                             primaryMuted = primaryMuted,
                             secondaryMuted = secondaryMuted,
@@ -1465,6 +1465,7 @@ private fun BoxScope.PlayerOverlayControls(
     fullscreen: Boolean,
 ) {
     var settingsOpen by remember { mutableStateOf(false) }
+    var speedOpen by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -1499,6 +1500,35 @@ private fun BoxScope.PlayerOverlayControls(
                 imageVector = if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
                 contentDescription = null
             )
+        }
+
+        Box {
+            IconButton(onClick = { speedOpen = true }, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.Dashboard, contentDescription = null)
+            }
+
+            DropdownMenu(expanded = speedOpen, onDismissRequest = { speedOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("倍速") },
+                    onClick = {}
+                )
+                listOf(0.5f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { v ->
+                    DropdownMenuItem(
+                        text = { Text("倍速 ${v}x") },
+                        onClick = {
+                            onSpeedChange(v)
+                            speedOpen = false
+                        },
+                        trailingIcon = {
+                            if (speed == v) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                            }
+                        }
+                    )
+                }
+            }
+
+
         }
 
         Box {
@@ -1540,26 +1570,6 @@ private fun BoxScope.PlayerOverlayControls(
                         )
                     }
                 )
-
-                DropdownMenuItem(
-                    text = { Text("倍速") },
-                    onClick = {}
-                )
-                listOf(0.5f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { v ->
-                    DropdownMenuItem(
-                        text = { Text("倍速 ${v}x") },
-                        onClick = {
-                            onSpeedChange(v)
-                            settingsOpen = false
-                        },
-                        trailingIcon = {
-                            if (speed == v) {
-                                Icon(Icons.Default.Check, contentDescription = null)
-                            }
-                        }
-                    )
-                }
-
                 DropdownMenuItem(
                     text = { Text("音量") },
                     onClick = {}
